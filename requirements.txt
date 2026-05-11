@@ -1,0 +1,8 @@
+PyYAML>=6.0
+python-dotenv>=1.0.1
+psycopg[binary]>=3.2.0
+SQLAlchemy>=2.0.0
+alembic>=1.13.0
+openai>=1.30.0
+flask>=3.0.0
+pytest>=8.2.0

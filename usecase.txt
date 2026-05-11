@@ -1,0 +1,351 @@
+
+
+                                                                                                                                     
+InterContinental Hotels Group
+Finance Solutions – GSRT Mailbox (Peoplesoft)
+
+
+
+
+
+GenWizard UC4: GSRT Mailbox Auto-Response
+
+Review and Sign Off
+SRE Lead
+Gaurav Garg
+
+Application Lead
+Rushabh Shah
+
+GenWizard Coach
+Kamatchi Durairajan
+	Date
+
+
+	Revision #	Date	Author	Description
+1	11/06/2025	Sushma	
+2	16/06/2025	Jafer	Internal Feedback changes done
+3			
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+Table of Contents
+
+Prerequisites	3
+Introduction, Scope & Process	3
+Process Documentation	5
+Design Considerations	09
+Approvals & Sign-off	09
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+Prerequisites
+
+Automation Enabler	Details	Type of Application	RPA Scope (Y/N)
+ServiceNow Access
+	An account with access to tickets for retrieving the necessary information	Web Based	Y
+Microsoft Outlook	Receive and send out email communication	Windows	Y
+Blue Prism	Perform GSRT Mailbox activity	RPA	Y
+
+Introduction, Scope & Process
+
+1	Introduction:
+
+GSRT Mailbox Auto-Response Automation is designed to streamline the handling of incoming emails by intelligently detecting and processing relevant messages. Upon identifying such emails, the system evaluates the content and associated ticket information to generate a context-aware, logical response. The BOT then sends an automated reply, guiding the user with appropriate instructions or actions tailored to the specific scenario
+
+2	Process Description:
+
+Incoming emails to the GSRT mailbox are scanned for ServiceNow Incident (INC)* or Service Request (ADH)* numbers in the subject or body. The system then verifies the corresponding ticket’s status in ServiceNow.
+•	If the ticket is missing or marked as inactive (e.g., Resolved, Closed, or Cancelled), an automated and logical response is triggered to guide the user accordingly.
+•	If the ticket status is New, Work in Progress (WIP), or On Hold, the system generates a context-aware response based on the predefined logic outlined in the automation design document.
+
+3	Scope:
+
+This automation applies to all emails received in the GSRT mailbox that are not from auto-notification sources. It covers identification of valid case numbers, checking their status in ServiceNow, and sending appropriate responses or escalating as per predefined categories.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+4	Process Flow Diagram
+
+
+ 
+
+
+
+
+
+4.1	Process Flow Explanation
+
+•	Read the GSRT Mailbox
+The process reads all unread emails from the configured GSRT mailbox using MS Outlook VBO.  
+•	Check if the Email is from a Bot/Auto-notification
+•	If the sender’s email matches predefined bot or auto-notification patterns, or contains keywords (e.g. FSPROD,UNX,FSPRD,Appsrv,WebsrvService).  → No Response / No Action is taken.
+•	If not, the process continues.
+
+•	Check for Valid Incident and Ad-hoc Number
+•	The process passes the email’s subject and body to extract a valid Incident Number and Ad-hoc Number.
+•	If either number is missing, → Reply to user with: "No Ticket Found – Please Create One", then End.  
+Note: Service Now URL to create the ticket will be shared with the User within the respond email.
+•	Check the Incident State (via ServiceNow API)
+The incident state is checked using a GET request to ServiceNow with the extracted Incident Number. 
+State-Based Actions:
+•	If Incident is Resolved / Cancelled / Closed: → Reply to user: "Ticket is already resolved. Please raise a new request ." → End process. 
+Note: Service Now URL to create the ticket will be shared with the User within the respond email.
+•	If Incident is New / In Progress / On Hold: → Reply to user: “We are reviewing your query” And notify the support team with ticket details to take further action. → End process   .
+
+ 
+
+
+
+Process Documentation
+
+1.	Keystroke-Level Process Details
+
+This section provides a detailed overview of the selected process to assist developers in its implementation. Each step is documented with corresponding screenshots for reference. To ensure clarity and modularity, the step-by-step instructions are aligned with the Process Flow Diagram. 
+
+IHG GSRT Setup
+Step 1
+	The system captures unread emails received in GSRT mailbox	
+Step 2
+	
+Check if Email is from a 
+Bot/Automated Source
+	The system checks the sender’s email address for the following keywords or addresses:
+Keywords: noreply, FSPROD, UNX, Appsrv, Websrv, Service
+ Email IDs:
+- fsprod_appsrv_noreply@ihg.com
+- ihg@service-now.com
+- fs92qa_psunx_noreply@ihg.com
+- prd-noreply-composer@ihg.com
+- fsprod_psunx2_noreply@ihg.com
+- fsprod_psunx3_noreply@ihg.com
+➡ If matched: No response is sent.  
+Step 3	Checks the email’s subject and body for valid Incident (INC*) or Service Request (ADH*) number.	Service Now Incident (INC*) 
+ 
+ 
+Service Request (ADH*)
+ 
+ 
+Step 4
+	If no ticket number is detected:
+- Auto-response is sent to the user, requesting them to log a new case via ServiceNow.	Auto-email to User:
+To: <User Email>
+CC: <Distribution list>
+Subject: 
+
+Hi [User's Name],
+
+Hope you are doing well.
+ 
+We reviewed your query and found that no reference case number was mentioned in your email. To assist you further, please share the relevant case number. If you do not have one, kindly raise a new case using the following link:
+https://ihg.service-now.com
+ Looking forward to your response.
+Thanks & Regards,
+GenWizard Team
+
+Step 5
+	Ticket Found → Status:
+ Resolved / Cancelled / Closed
+If the case status in 
+ServiceNow is inactive, 
+the following auto-response 
+is sent to user:
+	Auto-email to User:
+To: <User Email>
+CC: <Distribution list>
+Subject: 
+Hi [User's Name],
+
+Hope you’re doing well!
+ 
+We have received your query and reviewed the mentioned case number. It appears that the case is currently in a <Resolved / Cancelled / Closed> state.
+ 
+To assist you further, please share an open case number. If you do not have one, kindly raise a new case using the following link: https://ihg.service-now.com
+ 
+Looking forward to your response.
+ 
+Best regards,
+GenWizard Team
+
+Step 6	Ticket Found → Status: 
+Open / Pending / WIP
+
+	Check for Ihg@Servicenow email in recipients and Ref Msg Number and case number
+Step 7	Ticket Found → Status: 
+Open / Pending / WIP→
+Case Number : Present
+Ref Msg Not Present or 
+ihg@servvicenow not present
+in the receipients list or none 
+of them is present
+
+
+
+	Auto-email to Support Team:
+To: <Support Distribution List>
+CC: <Distribution list>
+Subject: GSRT – [Ticket Number] - Reference message ID was  not available
+
+Hi Support Team,
+
+We’ve received the following query from a user. Request you to kindly review and respond at the earliest:
+ 
+Case Number: XXXX
+Status: New/WIP/On-Hold.  
+Ref Msg: xxxx
+Exception Detail: No reference message ID or ihg@servvicenow not present
+in the receipients list was available in the email.
+User Query: {Email Message}
+
+Appreciate your prompt attention to this. See attached email for your reference.
+ Thanks & Regards,
+GenWizard Team
+User Comment: 
+ 
+We have received your query regarding the mentioned case number. The support team will review it and provide assistance as soon as possible.
+ 
+Regards, 
+Step 8	Ticket Found → Status: 
+Open / Pending / WIP→
+Case Number : Present
+Ref Msg: Present
+Email ihg@service now: Present	No Action Required
+
+
+
+
+2. Data Security: 
+All personal and sensitive user data must be securely handled and transferred. Ensure that data is encrypted during transmission, especially when interacting with external systems like ServiceNow.
+
+3. Authentication and Authorization: 
+•	Blue Prism use secure authentication mechanisms (e.g., OAuth tokens, ServiceNow API keys) when accessing ServiceNow and the internal user profile database.
+•	Only authorized Blue Prism processes should have permission to modify or access sensitive data.
+
+Design Considerations
+
+1.	Design Principles
+
+•	Automation-First Approach: Designed to minimize human intervention by auto-responding to emails based on ticket presence and status.
+•	Rule-Based Logic: Uses keyword and pattern matching for classification (e.g., bot email, ticket number).
+•	Business Continuity: Ensures critical user queries are acknowledged, and relevant teams are notified.
+•	Scalability: Easily extendable for additional conditions, senders, or response types.
+
+
+2.	Technical Implementation Details
+•	Email Reading
+•	Keyword Filtering
+•	Pattern Matching
+•	ServiceNow API Integration
+•	Conditional Logic
+
+3.	Blue Prism Automation
+
+•	 Input: GSRT Ticket Details
+•	Output: 
+a.	Automated Response Email
+b.	Support Notification Email
+
+•	Script Execution:
+a.	Read email
+b.	Validate sender against bot keyword list
+c.	Extract ticket number and Validate
+
+
+3.1.1	IHG Integration
+•	GSRT Setup Execution: Validation of user emails and associated ServiceNow tickets against business rules to ensure proper resolution routing.
+
+3.1.2	ServiceNow (SNOW) Integration
+•	API Used: REST API
+
+
+4.	System Requirement
+  	The following are the minimum system and software requirements:
+•	Windows 11
+•	Blue Prism 7.1.1
+•	.Net Framework 4.7
+•	Office 365
+•	RAM: 8GB
+•	64-bit Operating System
+•	Processor: Intel Xeon CPU E5 – 4657Lv2@
+•	10 GB Free Disk Space
+
+Historical Ticket Trends and Future Savings
+
+Historical Ticket Trends
+•	Average Monthly Case Count: 
+•	Average Number of Ranges Setup/Month: 
+•	Time Taken per Range Setup: 
+•	Overall Turnaround Time (TAT) per Case:
+
+Future Savings and Benefits
+•	Per Range Setup time will reduce to 15 minutes.
+•	Faster Turnaround: Potential to cut TAT significantly from 2 business days to few hours.
+•	Automated workflows eliminate manual errors, ensuring consistent and reliable outputs.
+
+Task	Before Automation	After Automation	Savings
+GSRT Setup (Per Range)			
+20 Ranges Per Month (Avg)			
+TAT Per Case			
+TAT for Monthly Cases (4 cases)			
+
+
+Approvals & Sign-off
+
+Approvals
+Head of, Finance Solutions & Intelligent Automations
+
+Assoc Director, IT Software Dev & Maint. - TS Corporate Applications
+
+Lead, Governance and Technology Compliance
+
+Sr Manager, Governance and Technology Compliance
+	
+

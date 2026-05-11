@@ -1,0 +1,44 @@
+Example 1
+Subject: Invoice INV-998
+Body: Please process payment by Friday.
+Output: {"category":"finance","reason":"invoice/payment intent"}
+
+Example 2
+Subject: Team standup schedule
+Body: Daily standup moved to 10:30.
+Output: {"category":"internal","reason":"internal team coordination"}
+
+Example 3
+Subject: 40% OFF this week only
+Body: Limited-time offer for premium plan.
+Output: {"category":"marketing","reason":"promotion/sale content"}
+
+Example 4
+Subject: Data backup verification report Appsrv
+Body: Nightly backup for March 17th completed successfully. All 14 databases verified. Appsrv
+Output: {"category":"bot","reason":"automated system report with service keyword and scheduled backup pattern"}
+
+Example 5
+Subject: Security patch required Websrv
+Body: CVE-2026-1234 affects your OpenSSL version. Apply the patch on all nodes. Websrv
+Output: {"category":"bot","reason":"automated alert with service keyword and technical pattern"}
+
+Example 6
+Subject: Q1 Performance Review Schedule noreply
+Body: Your performance review slot is on March 22nd. noreply
+Output: {"category":"bot","reason":"bot keyword detected (noreply) in no-reply pattern"}
+
+Example 7
+Subject: Pull Request #4521 - needs review
+Body: A new pull request has been opened. Build status: PASSED. Merge when ready.
+Output: {"category":"bot","reason":"automated CI/CD workflow notification from code platform"}
+
+Example 8
+Subject: Daily Digest - Your Activity Summary
+Body: Posts: 5, Comments: 12, Likes: 28. View your stats on the platform.
+Output: {"category":"bot","reason":"scheduled automated digest/report generation"}
+
+Example 9
+Subject: Order #ORD-78901 - Payment Confirmation
+Body: Transaction ID: TXN-45821. Amount: $299.99. This is an automated confirmation.
+Output: {"category":"bot","reason":"auto-generated transaction record, structured format, explicit automated message"}

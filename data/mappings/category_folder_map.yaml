@@ -1,0 +1,7 @@
+mapping:
+  finance: Finance
+  internal: Internal
+  marketing: Promotions
+  bot: Alerts  # Bot/automated emails (will be classified by OpenAI when keywords detected)
+  support: Support  # Support/help requests
+  general: General

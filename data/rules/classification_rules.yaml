@@ -1,0 +1,39 @@
+rules:
+  - category: finance
+    keywords:
+      - invoice
+      - payment
+      - reimbursement
+    sender_contains: billing
+
+  - category: internal
+    keywords:
+      - meeting
+      - lunch
+      - standup
+
+  - category: marketing
+    keywords:
+      - offer
+      - sale
+      - discount
+
+  - category: bot
+    keywords:
+      - noreply
+      - fsprod
+      - unx
+      - appsrv
+      - websrv
+      # - service
+
+  - category: support
+    keywords:
+      - account
+      - login
+      - access
+      - password
+      - help
+      - issue
+      - error
+    sender_contains: null
