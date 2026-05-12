@@ -85,6 +85,7 @@ class EmailSegregationPipeline:
         status = self._ticketing_client.get_ticket_status(incident_number)
         response = {'action':None,'reason':None,'processed_count':0}
         matche_subject = f"Incident {incident_number} has been opened for you".format(incident_number=incident_number)
+        comment_accuracy = self._ticketing_client.comment_accuracy_validation(incident_number, email)
 
         if status in _TERMINAL_STATUSES: # If ticket is already closed/resolved/cancelled, reply with closure message and do not create a new ticket
             reply = build_closed_ticket_reply(incident_number, status, sender_name=name_part)
@@ -93,25 +94,25 @@ class EmailSegregationPipeline:
             response['reason'] = "ticket is {status}".format(status=status.value)
             response['processed_count'] += 1 
 
-        elif status in {TicketStatus.NEW, TicketStatus.IN_PROGRESS, TicketStatus.ON_HOLD} and matche_subject in email.subject: # If ticket is open Ticket is opened, Support is working on it, and sender will be notified of updates by support.
-            reply = build_reviewing_ticket_reply(sender_name=name_part,status=status, ticket_number=incident_number)
-            self._mailbox_client.reply_email(email.id, reply)
+        elif status in {TicketStatus.NEW, TicketStatus.IN_PROGRESS, TicketStatus.ON_HOLD} and matche_subject in email.subject and comment_accuracy["match"]: # If ticket is open Ticket is opened, Support is working on it, and sender will be notified of updates by support.
+            # reply = build_reviewing_ticket_reply(sender_name=name_part,status=status, ticket_number=incident_number)
+            # self._mailbox_client.reply_email(email.id, reply)
             self._metrics.increment("emails_ticket_open_no_action")
             response['action'] = "replied: Ticket is {status}, support update to sender".format(status=status.value) ,
             response['reason'] = "Ticket is {status} , support team working on it.".format(status=status.value)
             response['processed_count'] += 1
 
         elif (status in {TicketStatus.NEW, TicketStatus.IN_PROGRESS, TicketStatus.ON_HOLD}) and not matche_subject in email.subject: # If ticket is open Ticket is opened, Support is working on it, and sender will be notified of updates by support.
-            reply = build_add_comment_ticket_reply(ticket_number=incident_number,sender_name=name_part)
-            self._mailbox_client.reply_email(email.id, reply)
-            comment_added = self._ticketing_client.add_comment(incident_number, email.body)
-            self._audit_logger.log({
-                "email_id": email.id,
-                "action": "support_notified_and_comment_added",
-                "ticket_number": incident_number,
-                "ticket_status": status.value,
-                "comment_added": comment_added,
-            })
+            # reply = build_add_comment_ticket_reply(ticket_number=incident_number,sender_name=name_part)
+            # self._mailbox_client.reply_email(email.id, reply)
+            # comment_added = self._ticketing_client.add_comment(incident_number, email.body)
+            # self._audit_logger.log({
+            #     "email_id": email.id,
+            #     "action": "support_notified_and_comment_added",
+            #     "ticket_number": incident_number,
+            #     "ticket_status": status.value,
+            #     "comment_added": comment_added,
+            # })
             self._metrics.increment("emails_ticket_open_no_action")
             response['action'] = "replied: Ticket is {status}, support update to sender".format(status=status.value) ,
             response['reason'] = "Ticket is {status} , support team working on it.".format(status=status.value)
@@ -133,6 +134,7 @@ class EmailSegregationPipeline:
         status = self._ticketing_client.get_ticket_status(incident_number)
         response = {'action':None,'reason':None,'processed_count':0}
         matche_subject = f"Incident {incident_number} has been opened for you".format(incident_number=incident_number)
+        comment_accuracy = self._ticketing_client.comment_accuracy_validation(incident_number, email)
 
         if status in _TERMINAL_STATUSES: # If ticket is already closed/resolved/cancelled, reply with closure message and do not create a new ticket
             reply = build_closed_ticket_reply(incident_number, status, sender_name=name_part)
@@ -143,74 +145,62 @@ class EmailSegregationPipeline:
             response['processed_count'] += 1
             
 
-        elif status in {TicketStatus.NEW, TicketStatus.IN_PROGRESS, TicketStatus.ON_HOLD} and matche_subject in email.subject: # If ticket is open but sender is asking to create a new one, reply with a message that ticket is already open and support will be notified. Notify support with the email content and add a comment to the existing ticket for visibility.
-            reply = build_reviewing_ticket_reply(ticket_number=incident_number,status=status,sender_name=name_part)
-            self._mailbox_client.reply_email(email.id, reply)
+        elif status in {TicketStatus.NEW, TicketStatus.IN_PROGRESS, TicketStatus.ON_HOLD} and matche_subject in email.subject and comment_accuracy["match"]: # If ticket is open but sender is asking to create a new one, reply with a message that ticket is already open and support will be notified. Notify support with the email content and add a comment to the existing ticket for visibility.
+            # reply = build_reviewing_ticket_reply(ticket_number=incident_number,status=status,sender_name=name_part)
+            # self._mailbox_client.reply_email(email.id, reply)
             
-            support_subject = f"GSRT - [{incident_number}] - Reference message unavailable"
-            support_body = (
-                f"<html><body><p>Hi Support Team,</p>"
-                f"<p>We received a user query for ticket <strong>{incident_number}</strong> "
-                f"with status <strong>{status.value}</strong>.</p>"
-                f"<p>Please review and respond at the earliest.</p>"
-                f"<p>Regards,<br/>GenWizard Automation Team</p></body></html>"
-            )
-            attachment_body = (
-                f"From: {email.sender}\n"
-                f"Subject: {email.subject}\n\n"
-                f"{email.body}"
-            )
-            self._mailbox_client.send_support_notification(
-                to_addresses=self._support_engineer_emails,
-                subject=support_subject,
-                body=support_body,
-                attachment_name=f"user-query-{email.id}.txt",
-                attachment_content=attachment_body,
-            )
-            # comment_added = self._ticketing_client.add_comment(incident_number, email.body)
-            # self._audit_logger.log({
-            #     "email_id": email.id,
-            #     "action": "support_notified_and_comment_added",
-            #     "ticket_number": incident_number,
-            #     "ticket_status": status.value,
-            #     "comment_added": comment_added,
-            # })
-            # self._repository.save(
-            #     email.id,
-            #     "ticket_open_support_notified",
-            #     "Inbox",
-            #     f"Support notified for {incident_number}; comment_added={comment_added}",
+            # support_subject = f"GSRT - [{incident_number}] - Reference message unavailable"
+            # support_body = (
+            #     f"<html><body><p>Hi Support Team,</p>"
+            #     f"<p>We received a user query for ticket <strong>{incident_number}</strong> "
+            #     f"with status <strong>{status.value}</strong>.</p>"
+            #     f"<p>Please review and respond at the earliest.</p>"
+            #     f"<p>Regards,<br/>GenWizard Automation Team</p></body></html>"
             # )
+            # attachment_body = (
+            #     f"From: {email.sender}\n"
+            #     f"Subject: {email.subject}\n\n"
+            #     f"{email.body}"
+            # )
+            # self._mailbox_client.send_support_notification(
+            #     to_addresses=self._support_engineer_emails,
+            #     subject=support_subject,
+            #     body=support_body,
+            #     attachment_name=f"user-query-{email.id}.txt",
+            #     attachment_content=attachment_body,
+            # )
+    
             self._metrics.increment("emails_ticket_open_support_notified")
             response['action'] = "replied: Ticket is {status} comment added on serviceNow and support will be notified for visibility.".format(status=status.value) ,
             response['reason'] = "ticket is {status}".format(status=status.value)
             response['processed_count'] += 1
 
-        elif (status in {TicketStatus.NEW, TicketStatus.IN_PROGRESS, TicketStatus.ON_HOLD}) and not matche_subject in email.subject: # If ticket is open but sender is asking to create a new one, reply with a message that ticket is already open and support will be notified. Notify support with the email content and add a comment to the existing ticket for visibility.
-            reply = build_add_comment_ticket_reply(ticket_number=incident_number, sender_name=name_part)
-            self._mailbox_client.reply_email(email.id, reply)
+        elif (status in {TicketStatus.NEW, TicketStatus.IN_PROGRESS, TicketStatus.ON_HOLD}): # If ticket is open but sender is asking to create a new one, reply with a message that ticket is already open and support will be notified. Notify support with the email content and add a comment to the existing ticket for visibility.
+            # reply = build_add_comment_ticket_reply(ticket_number=incident_number, sender_name=name_part)
+            # self._mailbox_client.reply_email(email.id, reply)
             
-            support_subject = f"GSRT - [{incident_number}] - Reference message unavailable"
-            support_body = (
-                f"<html><body><p>Hi Support Team,</p>"
-                f"<p>We received a user query for ticket <strong>{incident_number}</strong> "
-                f"with status <strong>{status.value}</strong>.</p>"
-                f"<p>Please review and respond at the earliest.</p>"
-                f"<p>Regards,<br/>GenWizard Automation Team</p></body></html>"
-            )
-            attachment_body = (
-                f"From: {email.sender}\n"
-                f"Subject: {email.subject}\n\n"
-                f"{email.body}"
-            )
-            self._mailbox_client.send_support_notification(
-                to_addresses=self._support_engineer_emails,
-                subject=support_subject,
-                body=support_body,
-                attachment_name=f"user-query-{email.id}.txt",
-                attachment_content=attachment_body,
-            )
-            comment_added = self._ticketing_client.add_comment(incident_number, email.body)
+            # support_subject = f"GSRT - [{incident_number}] - Reference message unavailable"
+            # support_body = (
+            #     f"<html><body><p>Hi Support Team,</p>"
+            #     f"<p>We received a user query for ticket <strong>{incident_number}</strong> "
+            #     f"with status <strong>{status.value}</strong>.</p>"
+            #     f"<p>Please review and respond at the earliest.</p>"
+            #     f"<p>Regards,<br/>GenWizard Automation Team</p></body></html>"
+            # )
+            # attachment_body = (
+            #     f"From: {email.sender}\n"
+            #     f"Subject: {email.subject}\n\n"
+            #     f"{email.body}"
+            # )
+            # self._mailbox_client.send_support_notification(
+            #     to_addresses=self._support_engineer_emails,
+            #     subject=support_subject,
+            #     body=support_body,
+            #     attachment_name=f"user-query-{email.id}.txt",
+            #     attachment_content=attachment_body,
+            # )
+            body = self._ticketing_client.extract_latest_comment(email.body)
+            comment_added = self._ticketing_client.add_comment(incident_number, body)
             self._audit_logger.log({
                 "email_id": email.id,
                 "action": "support_notified_and_comment_added",
@@ -302,9 +292,6 @@ class EmailSegregationPipeline:
             servicenow_recipient_present = is_servicenow_cced(email)
             incident_number = extract_incident_number(email)
             response = {'action':None,'reason':None,'processed_count':0}
-
-            result =  self._ticketing_client.get_customer_comment_from_servicenow(incident_number)
-            match_percent = self._ticketing_client.match_accuracy_text(result,email)
             
             if ( incident_number and f"Incident {incident_number} has been opened for you" in email.subject) or servicenow_recipient_present:
                 result = replace(result, category="Service-now")

@@ -28,9 +28,49 @@ STOP_WORDS = {
 }
 
 class ServiceNowTicketingClient:
+    # def clean_recipients_from_text(self, all_addresses: list[str], result: str) -> str:
+    #     for email_address in all_addresses:
+    #         result = re.sub( re.escape(email_address),'',result,flags=re.IGNORECASE )
+    #     return result
 
-    def similarity(self, a, b):
-        return SequenceMatcher(None, a, b).ratio() * 100
+    def clean_recipients_from_text(self, body: str) -> str:
+        if not body:
+            return ""
+
+        # Normalize line breaks
+        body = body.replace("\r", "\n")
+
+        # Remove "reply from: xxx" line if present
+        body = re.sub(
+            r"^reply\s+from:.*?\n+",
+            "",
+            body,
+            flags=re.IGNORECASE | re.MULTILINE
+        )
+
+        # Convert multiline to single clean text
+        body = re.sub(r"\n+", " ", body)
+
+        # Normalize spaces
+        body = re.sub(r"\s+", " ", body).strip()
+
+        # Patterns where auto-generated/system content starts
+        split_patterns = [
+            r"\bfrom:\b",
+            r"\bihg service desk\b",
+            r"\bsent:\b",
+            r"\bsubject:\b",
+            r"\bincident\s+inc\d+\b",
+            r"\bhas been opened for you\b",
+        ]
+
+        for pattern in split_patterns:
+            match = re.search(pattern, body, flags=re.IGNORECASE)
+            if match:
+                body = body[:match.start()].strip()
+                break
+
+        return body.strip(" -:\n\t")
 
 
     def clean_text(self, text: str) -> str:
@@ -43,8 +83,8 @@ class ServiceNowTicketingClient:
         # Remove escape characters
         text = text.replace("\r", " ").replace("\n", " ").replace("\t", " ")
 
-        # Remove email headers / quoted thread
-        text = re.split(r"from:|sent:|subject:|to:", text, flags=re.IGNORECASE)[0]
+        # Remove header labels but keep the surrounding content.
+        text = re.sub(r"\b(?:from|sent|subject|to|reply)\b\s*:?", " ", text)
 
         # Remove multiple spaces
         text = re.sub(r"\s+", " ", text)
@@ -138,7 +178,6 @@ class ServiceNowTicketingClient:
         mail_body_rsp = self.clean_text(mail_body)
         payload = {
             "comments": mail_body_rsp,
-            "work_notes": mail_body_rsp,
         }
         sys_response = None
         try:
@@ -152,24 +191,11 @@ class ServiceNowTicketingClient:
 
         try:
             sys_id = sys_response["result"][0]["sys_id"]
-            url = f"https://ihguat.service-now.com/api/now/table/incident/{sys_id}"
+            url = f"https://ihg.service-now.com/api/now/table/incident/{sys_id}"
 
             response = requests.patch(url,json=payload,headers=headers,auth=(username, password),)
             response.raise_for_status()
             print("Comment_response:", response)
-        except requests.RequestException as exc:
-            logger.error("ServiceNow add comment error for %s: %s", incident_number, exc)
-            return False
-        
-        try:
-            sys_id = sys_response["result"][0]["sys_id"]
-            url = f"https://ihg.service-now.com/api/now/table/incident/{sys_id}"
-
-            response = requests.get(url,json={},headers=headers,auth=(username, password),)
-            response.raise_for_status()
-            result = response.json().get("result", {})
-            customer_comment = result.get("u_comments_customer", "")
-            print("Comment_response:", customer_comment)
         except requests.RequestException as exc:
             logger.error("ServiceNow add comment error for %s: %s", incident_number, exc)
             return False
@@ -195,45 +221,73 @@ class ServiceNowTicketingClient:
             logger.error("ServiceNow add comment error for %s: %s", incident_number, exc)
             return False
         
-    def match_accuracy_text(self, result:str, email:str):
-    
-        all_addresses = email.to_addresses + email.cc_addresses
+    def extract_latest_comment(self, body: str) -> str:
+        if not body:
+            return ""
 
-        for email_address in all_addresses:
-            result = re.sub( re.escape(email_address),'',result,flags=re.IGNORECASE )
+        body = body.replace("\r", " ").replace("\n", " ")
+
+        # Normalize spaces
+        body = re.sub(r"\s+", " ", body).strip()
+
+        # Common patterns where ServiceNow/system text starts
+        split_patterns = [
+            r"\bfrom:\b",
+            r"\bihg service desk\b",
+            r"\bincident\s+inc\d+\b",
+            r"\bhas been opened for you\b",
+            r"\bsent:\b",
+            r"\bsubject:\b",
+        ]
+
+        for pattern in split_patterns:
+            match = re.search(pattern, body, flags=re.IGNORECASE)
+            if match:
+                body = body[:match.start()].strip()
+                break
+
+        return body.strip(" -:\n\t")    
+        
+    def match_accuracy_text(self, result: str, email: str) -> tuple[int, set[str]]:
+    
+        all_addresses = email.to_addresses + email.cc_addresses + [email.sender]
+
+        
+        # result_text_A = self.clean_recipients_from_text(all_addresses, result)
+        result_text_A = self.clean_recipients_from_text(result)
+        result_text_B = self.extract_latest_comment(email.body)
+        # result_text_B = self.clean_recipients_from_text(all_addresses, email_body)
 
         # Remove extra spaces/newlines
-        text_A = re.sub(r'\s+', ' ', result).strip()
+        text_A = re.sub(r'\s+', ' ', result_text_A).strip()
+        text_B = re.sub(r'\s+', ' ', result_text_B).strip()
 
         text_A_clean = self.clean_text(text_A)
-        text_B_clean = self.clean_text(email.body)
+        text_B_clean = self.clean_text(text_B)
+        text_A_clean_set = set(text_A_clean.lower().split())
+        text_B_clean_set = set(text_B_clean.lower().split())
+        matched_words = text_A_clean_set.intersection(text_B_clean_set)
+        match_percent = round((len(matched_words) / len(text_A_clean_set)) * 100)
 
-        match_percent = round(self.similarity(text_A_clean,text_B_clean))
+        # match_percent = round(self.similarity(text_A_clean,text_B_clean))
 
-        print(match_percent) 
-        return match_percent 
+        print(match_percent)
+        response = {
+            "match_percent": match_percent,
+            "matched_words": matched_words,
+            "customer_comment": text_A_clean
+        }
+        return response
 
+    def comment_accuracy_validation(self, incident_number: str, email: str) -> bool:
+        customer_comment =  self.get_customer_comment_from_servicenow(incident_number)
+        match_response = self.match_accuracy_text(customer_comment, email)
+        print("Match response:", match_response)
+        match_response["match"] = False
+        if match_response["match_percent"] >= 70:
+            logger.warning("Comment accuracy validation failed for %s: %s", incident_number, match_response)
+            match_response["match"] = True
+    
+        return match_response
 
-    # def match_accuracy_text(self, text_a, text_b):
-
-    #     text_a = self.clean_text(text_a)
-    #     text_b = self.clean_text(text_b)
-
-    #     words1 = {
-    #         w for w in text_a.split()
-    #         if w not in STOP_WORDS
-    #     }
-
-    #     words2 = {
-    #         w for w in text_b.split()
-    #         if w not in STOP_WORDS
-    #     }
-
-    #     common_words = words1.intersection(words2)
-
-    #     match_percent = (
-    #         len(common_words) / max(len(words1), len(words2))
-    #     ) * 100
-
-    #     return round(match_percent, 2) 
-
+        

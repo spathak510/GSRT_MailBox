@@ -127,4 +127,5 @@ def is_servicenow_cced(email: EmailMessage) -> bool:
     """Check if 'ihg@servicenow.com' is in the TO or CC addresses."""
     to_list = email.to_addresses or []
     cc_list = email.cc_addresses or []
-    return "ihg@service-now.com" in to_list or "ihg@service-now.com" in cc_list
+    recipient_list = to_list + cc_list
+    return "ihg@service-now.com" in recipient_list

@@ -73,3 +73,13 @@ def test_get_ticket_status_prefers_explicit_headers(monkeypatch) -> None:
         "Authorization": "Basic token-value",
         "Cookie": "cookie=value",
     }
+
+
+def test_clean_text_removes_header_labels_without_truncating_message() -> None:
+    client = ServiceNowTicketingClient()
+
+    cleaned = client.clean_text(
+        "Please review this update. From: Alice Reply Bob Sent: Today Subject: Incident To: Team"
+    )
+
+    assert cleaned == "please review this update. alice bob today incident team"
