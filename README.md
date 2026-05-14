@@ -62,6 +62,7 @@ pytest -q
 - The included mailbox and AI clients are safe starter implementations and can be replaced with real providers.
 - SQLite is used by default (`data/email_segregation.db`).
 - PostgreSQL is supported via `DATABASE_URL=postgresql://...`.
+- Application logs are written to console and to `data/logs/app.log` by default. Override with `LOG_FILE_PATH`.
 
 ## PostgreSQL Setup
 

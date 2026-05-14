@@ -177,7 +177,7 @@ class ServiceNowTicketingClient:
         headers = {"Content-Type": "application/json"}
         mail_body_rsp = self.clean_text(mail_body)
         payload = {
-            "comments": mail_body_rsp,
+            "u_comments_customer": mail_body_rsp,
         }
         sys_response = None
         try:
@@ -221,7 +221,7 @@ class ServiceNowTicketingClient:
             logger.error("ServiceNow add comment error for %s: %s", incident_number, exc)
             return False
         
-    def extract_latest_comment(self, body: str) -> str:
+    def extract_email_body(self, body: str) -> str:
         if not body:
             return ""
 
@@ -255,7 +255,7 @@ class ServiceNowTicketingClient:
         
         # result_text_A = self.clean_recipients_from_text(all_addresses, result)
         result_text_A = self.clean_recipients_from_text(result)
-        result_text_B = self.extract_latest_comment(email.body)
+        result_text_B = self.extract_email_body(email.body)
         # result_text_B = self.clean_recipients_from_text(all_addresses, email_body)
 
         # Remove extra spaces/newlines
@@ -282,7 +282,7 @@ class ServiceNowTicketingClient:
     def comment_accuracy_validation(self, incident_number: str, email: str) -> bool:
         customer_comment =  self.get_customer_comment_from_servicenow(incident_number)
         match_response = self.match_accuracy_text(customer_comment, email)
-        print("Match response:", match_response)
+        print("Match response----------------------------------------:", match_response)
         match_response["match"] = False
         if match_response["match_percent"] >= 70:
             logger.warning("Comment accuracy validation failed for %s: %s", incident_number, match_response)

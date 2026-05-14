@@ -143,7 +143,7 @@ def build_closed_ticket_reply(
         + _html_greeting(sender_name)
         + "<p style=\"margin:0 0 14px;\">Hope you're doing well!</p>"
         + "<p style=\"margin:0 0 14px;\">We have received your query and reviewed the "
-          "mentioned case number {safe_ticket}. It appears that the case is currently in a "
+          f"mentioned case number {safe_ticket}. It appears that the case is currently in a "
           f"<strong>{safe_status}</strong> state.</p>"
         + "<p style=\"margin:0 0 14px;\">To assist you further, please share an open case "
           "number. If you do not have one, kindly raise a new case using the following "

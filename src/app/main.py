@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import yaml
@@ -17,6 +18,9 @@ from app.observability.audit_logger import AuditLogger
 from app.observability.metrics import Metrics
 from app.settings.config import ROOT_DIR, load_config
 from app.settings.logging import setup_logging
+
+
+logger = logging.getLogger(__name__)
 
 
 def _load_rules(path: Path) -> list[Rule]:
@@ -45,7 +49,13 @@ def _read_text(path: Path) -> str:
 
 def build_pipeline() -> EmailSegregationPipeline:
     cfg = load_config()
-    setup_logging(cfg.log_level)
+    setup_logging(cfg.log_level, cfg.log_file_path)
+    logger.info(
+        "Initializing mailbox assistant env=%s log_level=%s log_file=%s",
+        cfg.app_env,
+        cfg.log_level,
+        cfg.log_file_path,
+    )
 
     conn = get_connection(cfg.database_url)
     init_schema(conn)
@@ -87,7 +97,9 @@ def build_pipeline() -> EmailSegregationPipeline:
 
 def run_once() -> int:
     pipeline = build_pipeline()
-    return pipeline.process_unread_emails()
+    processed = pipeline.process_unread_emails()
+    logger.info("Run completed processed=%s", processed)
+    return processed
 
 
 if __name__ == "__main__":

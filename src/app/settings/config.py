@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 class AppConfig:
     app_env: str
     log_level: str
+    log_file_path: Path
     database_url: str
     audit_log_path: Path
     prompts_dir: Path
@@ -41,6 +42,7 @@ def load_config() -> AppConfig:
     return AppConfig(
         app_env=os.getenv("APP_ENV", "dev"),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
+        log_file_path=ROOT_DIR / os.getenv("LOG_FILE_PATH", "data/logs/app.log"),
         database_url=os.getenv("DATABASE_URL", "sqlite:///data/email_segregation.db"),
         audit_log_path=ROOT_DIR / os.getenv("AUDIT_LOG_PATH", "data/audit_log.jsonl"),
         prompts_dir=ROOT_DIR / os.getenv("PROMPTS_DIR", "data/prompts"),
@@ -63,7 +65,7 @@ def load_config() -> AppConfig:
             t.strip()
             for t in os.getenv(
                 "VIP_TITLES",
-                "Director,VP,Vice President,Chief,CTO,CEO,COO,CFO,SVP,EVP",
+                "Director,VP,Vice President,Chief,CTO,CEO,COO,CFO,SVP,EVP,Head,Head of,Lead",
             ).split(",")
             if t.strip()
         ],
@@ -71,7 +73,7 @@ def load_config() -> AppConfig:
             c.strip()
             for c in os.getenv(
                 "GENERAL_CATEGORIES",
-                "general,marketing,newsletter,junk",
+                "marketing,newsletter,junk",
             ).split(",")
             if c.strip()
         ],
