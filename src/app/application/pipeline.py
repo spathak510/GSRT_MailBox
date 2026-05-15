@@ -292,6 +292,10 @@ class EmailSegregationPipeline:
             reason = result.reason if result.reason else response.get('reason')
             self._repository.save(email.id, result.category, folder, reason)
             self._metrics.increment("emails_processed")
+
+            response['action'] = response['action'] ,
+            response['reason'] = reason
+            response['processed_count'] += 1
             
             self._audit_logger.log({
                 "email_id": email.id,

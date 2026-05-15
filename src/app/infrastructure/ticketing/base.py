@@ -207,6 +207,7 @@ class ServiceNowTicketingClient:
         username = os.getenv("IHG_SERVICENOW_USERNAME")
         password = os.getenv("IHG_SERVICENOW_PASSWORD")
         headers = {"Content-Type": "application/json"}
+        comments = {}
         try:
             sys_id = self.get_sys_id_from_servicenow(incident_number)
             url = f"https://ihg.service-now.com/api/now/table/incident/{sys_id}"
@@ -215,8 +216,10 @@ class ServiceNowTicketingClient:
             response.raise_for_status()
             result = response.json().get("result", {})
             customer_comment = result.get("u_comments_customer", "")
-            print("Comment_response:", customer_comment)
-            return customer_comment
+            comments["u_comment_customer"] = result.get("u_comments_customer", "")
+            comments["u_comments_fulfiller"] = result.get("u_comments_fulfiller", "")
+            print("Comments:", comments)
+            return comments
         except requests.RequestException as exc:
             logger.error("ServiceNow add comment error for %s: %s", incident_number, exc)
             return False
@@ -280,8 +283,13 @@ class ServiceNowTicketingClient:
         return response
 
     def comment_accuracy_validation(self, incident_number: str, email: str) -> bool:
-        customer_comment =  self.get_customer_comment_from_servicenow(incident_number)
-        match_response = self.match_accuracy_text(customer_comment, email)
+        comments =  self.get_customer_comment_from_servicenow(incident_number)
+        if comments["u_comment_customer"]:
+            match_response = self.match_accuracy_text(comments["u_comment_customer"], email)
+            if match_response["match_percent"] < 70:
+               match_response = self.match_accuracy_text(comments["u_comments_fulfiller"], email)
+        else:
+              match_response = self.match_accuracy_text(comments["u_comments_fulfiller"], email)         
         print("Match response----------------------------------------:", match_response)
         match_response["match"] = False
         if match_response["match_percent"] >= 70:
