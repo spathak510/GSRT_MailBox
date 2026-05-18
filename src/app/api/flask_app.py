@@ -45,7 +45,7 @@ def create_app() -> Flask:
                 _poller_state["last_processed"] = count
                 _poller_state["run_count"] += 1
                 if count:
-                    logger.info("Poller: processed %d email(s)", count)
+                    logger.info("Poller: processed %d email(s)", count.get('processed_count',0))
             except Exception as exc:
                 logger.error("Poller error: %s", exc)
             time.sleep(interval)

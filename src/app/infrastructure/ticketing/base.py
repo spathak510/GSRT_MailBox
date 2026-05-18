@@ -177,7 +177,7 @@ class ServiceNowTicketingClient:
         headers = {"Content-Type": "application/json"}
         mail_body_rsp = self.clean_text(mail_body)
         payload = {
-            "u_comments_customer": mail_body_rsp,
+            "comments": mail_body_rsp,
         }
         sys_response = None
         try:
@@ -270,9 +270,13 @@ class ServiceNowTicketingClient:
         text_A_clean_set = set(text_A_clean.lower().split())
         text_B_clean_set = set(text_B_clean.lower().split())
         matched_words = text_A_clean_set.intersection(text_B_clean_set)
-        match_percent = round((len(matched_words) / len(text_A_clean_set)) * 100)
-
-        # match_percent = round(self.similarity(text_A_clean,text_B_clean))
+        # Prevent ZeroDivisionError
+        if not text_A_clean_set:
+            match_percent = 0
+        else:
+            match_percent = round(
+                (len(matched_words) / len(text_A_clean_set)) * 100
+            )
 
         print(match_percent)
         response = {
