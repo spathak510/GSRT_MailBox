@@ -160,7 +160,7 @@ class ServiceNowTicketingClient:
         password = os.getenv("IHG_SERVICENOW_PASSWORD")
         headers = {"Content-Type": "application/json"}
         try:
-            url = f"https://ihg.service-now.com/api/now/table/incident?sysparm_query=number={incident_number}&sysparm_limit=1"
+            url = f"https://ihguat.service-now.com/api/now/table/incident?sysparm_query=number={incident_number}&sysparm_limit=1"
             response = requests.get(url,json={},headers=headers,auth=(username, password),)
             sys_response = response.json()
             print("sys_response:", sys_response)
@@ -181,7 +181,7 @@ class ServiceNowTicketingClient:
         }
         sys_response = None
         try:
-            url = f"https://ihg.service-now.com/api/now/table/incident?sysparm_query=number={incident_number}&sysparm_limit=1"
+            url = f"https://ihguat.service-now.com/api/now/table/incident?sysparm_query=number={incident_number}&sysparm_limit=1"
             response = requests.get(url,json={},headers=headers,auth=(username, password),)
             sys_response = response.json()
             print("sys_response:", sys_response)
@@ -191,7 +191,7 @@ class ServiceNowTicketingClient:
 
         try:
             sys_id = sys_response["result"][0]["sys_id"]
-            url = f"https://ihg.service-now.com/api/now/table/incident/{sys_id}"
+            url = f"https://ihguat.service-now.com/api/now/table/incident/{sys_id}"
 
             response = requests.patch(url,json=payload,headers=headers,auth=(username, password),)
             response.raise_for_status()
@@ -210,7 +210,7 @@ class ServiceNowTicketingClient:
         comments = {}
         try:
             sys_id = self.get_sys_id_from_servicenow(incident_number)
-            url = f"https://ihg.service-now.com/api/now/table/incident/{sys_id}"
+            url = f"https://ihguat.service-now.com/api/now/table/incident/{sys_id}"
 
             response = requests.get(url,json={},headers=headers,auth=(username, password),)
             response.raise_for_status()

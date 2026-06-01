@@ -69,14 +69,33 @@ class StubMailboxClient(MailboxClient):
 
 
 class StubTicketingClient:
-    def __init__(self, status: TicketStatus) -> None:
+    def __init__(
+        self,
+        status: TicketStatus,
+        status_by_ticket: dict[str, TicketStatus] | None = None,
+        match_percent_by_ticket: dict[str, int] | None = None,
+    ) -> None:
         self.status = status
+        self.status_by_ticket = status_by_ticket or {}
+        self.match_percent_by_ticket = match_percent_by_ticket or {}
         self.ticket_numbers: list[str] = []
         self.comment_updates: list[tuple[str, str]] = []
 
     def get_ticket_status(self, ticket_number: str) -> TicketStatus:
         self.ticket_numbers.append(ticket_number)
-        return self.status
+        return self.status_by_ticket.get(ticket_number, self.status)
+
+    def comment_accuracy_validation(self, incident_number: str, email: EmailMessage) -> dict[str, object]:
+        match_percent = self.match_percent_by_ticket.get(incident_number, 100)
+        return {
+            "match_percent": match_percent,
+            "matched_words": set(),
+            "customer_comment": "",
+            "match": match_percent >= 70,
+        }
+
+    def extract_email_body(self, body: str) -> str:
+        return body
 
     def add_comment(self, incident_number: str, mail_body: str) -> bool:
         self.comment_updates.append((incident_number, mail_body))
@@ -568,3 +587,193 @@ def test_servicenow_closed_ticket_replies_without_cc(tmp_path) -> None:
     assert mailbox.support_notifications == []
     assert ticketing.comment_updates == []
     assert mailbox.moved == []
+
+
+def test_multiple_incidents_in_one_email_updates_open_ticket_without_reply(tmp_path) -> None:
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    init_schema(conn)
+
+    email = EmailMessage(
+        id="snow-multi",
+        subject="Follow-up on INC7050808 and INC7050809",
+        body="Please review both incidents.",
+        sender="user@example.com",
+        sender_name="User Multi, Analyst",
+        received_at=datetime.now(timezone.utc),
+        to_addresses=["ihg@servicenow.com"],
+    )
+
+    mailbox = StubMailboxClient(unread_emails=[email])
+    ticketing = StubTicketingClient(
+        TicketStatus.RESOLVED,
+        status_by_ticket={
+            "INC7050808": TicketStatus.CANCELLED,
+            "INC7050809": TicketStatus.ON_HOLD,
+        },
+        match_percent_by_ticket={"INC7050809": 10},
+    )
+    pipeline = EmailSegregationPipeline(
+        mailbox_client=mailbox,
+        ai_client=StubAIClient(),
+        repository=ProcessedEmailRepository(conn),
+        folder_mapper=FolderMapper({}, default_folder="General"),
+        rules=[],
+        metrics=Metrics(),
+        audit_logger=AuditLogger(tmp_path / "audit.jsonl"),
+        system_prompt="SYSTEM",
+        fewshot_prompt="FEWSHOT",
+        ticketing_client=ticketing,
+        support_engineer_emails=["support@company.com"],
+    )
+
+    pipeline.process_unread_emails()
+
+    assert ticketing.ticket_numbers == ["INC7050808", "INC7050809"]
+    assert mailbox.replies == []
+    assert ticketing.comment_updates == [("INC7050809", "Please review both incidents.")]
+    assert mailbox.support_notifications == []
+    assert mailbox.moved == [("snow-multi", "General")]
+
+
+def test_multiple_active_incidents_send_clarification_reply(tmp_path) -> None:
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    init_schema(conn)
+
+    email = EmailMessage(
+        id="snow-open-multi",
+        subject="Follow-up on INC7050901 and INC7050902",
+        body="Please check both active incidents.",
+        sender="user@example.com",
+        sender_name="User Open, Analyst",
+        received_at=datetime.now(timezone.utc),
+        to_addresses=["ihg@servicenow.com"],
+    )
+
+    mailbox = StubMailboxClient(unread_emails=[email])
+    ticketing = StubTicketingClient(
+        TicketStatus.ON_HOLD,
+        status_by_ticket={
+            "INC7050901": TicketStatus.NEW,
+            "INC7050902": TicketStatus.ON_HOLD,
+        },
+        match_percent_by_ticket={
+            "INC7050901": 10,
+            "INC7050902": 10,
+        },
+    )
+    pipeline = EmailSegregationPipeline(
+        mailbox_client=mailbox,
+        ai_client=StubAIClient(),
+        repository=ProcessedEmailRepository(conn),
+        folder_mapper=FolderMapper({}, default_folder="General"),
+        rules=[],
+        metrics=Metrics(),
+        audit_logger=AuditLogger(tmp_path / "audit.jsonl"),
+        system_prompt="SYSTEM",
+        fewshot_prompt="FEWSHOT",
+        ticketing_client=ticketing,
+        support_engineer_emails=["support@company.com"],
+    )
+
+    pipeline.process_unread_emails()
+
+    assert ticketing.ticket_numbers == ["INC7050901", "INC7050902"]
+    assert ticketing.comment_updates == [
+        ("INC7050901", "Please check both active incidents."),
+        ("INC7050902", "Please check both active incidents."),
+    ]
+    assert len(mailbox.replies) == 1
+    assert "which incident you want us to review" in mailbox.replies[0][1].lower()
+    assert "INC7050901" in mailbox.replies[0][1]
+    assert "INC7050902" in mailbox.replies[0][1]
+
+
+def test_multiple_incidents_all_terminal_send_single_new_case_reply(tmp_path) -> None:
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    init_schema(conn)
+
+    email = EmailMessage(
+        id="snow-terminal",
+        subject="Follow-up on INC7050810 and INC7050811",
+        body="Please review both closed incidents.",
+        sender="user@example.com",
+        sender_name="User Closed, Analyst",
+        received_at=datetime.now(timezone.utc),
+    )
+
+    mailbox = StubMailboxClient(unread_emails=[email])
+    ticketing = StubTicketingClient(
+        TicketStatus.RESOLVED,
+        status_by_ticket={
+            "INC7050810": TicketStatus.CANCELLED,
+            "INC7050811": TicketStatus.RESOLVED,
+        },
+    )
+    pipeline = EmailSegregationPipeline(
+        mailbox_client=mailbox,
+        ai_client=StubAIClient(),
+        repository=ProcessedEmailRepository(conn),
+        folder_mapper=FolderMapper({}, default_folder="General"),
+        rules=[],
+        metrics=Metrics(),
+        audit_logger=AuditLogger(tmp_path / "audit.jsonl"),
+        system_prompt="SYSTEM",
+        fewshot_prompt="FEWSHOT",
+        ticketing_client=ticketing,
+    )
+
+    pipeline.process_unread_emails()
+
+    assert ticketing.ticket_numbers == ["INC7050810", "INC7050811"]
+    assert len(mailbox.replies) == 1
+    assert "each referenced incident is already in a closed state" in mailbox.replies[0][1].lower()
+    assert "raise a new case" in mailbox.replies[0][1].lower()
+    assert ticketing.comment_updates == []
+
+
+def test_multiple_incidents_all_not_found_send_single_not_found_reply(tmp_path) -> None:
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    init_schema(conn)
+
+    email = EmailMessage(
+        id="snow-missing",
+        subject="Question on INC7050812 and INC7050813",
+        body="Please check both incident numbers.",
+        sender="user@example.com",
+        sender_name="User Missing, Analyst",
+        received_at=datetime.now(timezone.utc),
+    )
+
+    mailbox = StubMailboxClient(unread_emails=[email])
+    ticketing = StubTicketingClient(
+        TicketStatus.NOT_FOUND,
+        status_by_ticket={
+            "INC7050812": TicketStatus.NOT_FOUND,
+            "INC7050813": TicketStatus.NOT_FOUND,
+        },
+    )
+    pipeline = EmailSegregationPipeline(
+        mailbox_client=mailbox,
+        ai_client=StubAIClient(),
+        repository=ProcessedEmailRepository(conn),
+        folder_mapper=FolderMapper({}, default_folder="General"),
+        rules=[],
+        metrics=Metrics(),
+        audit_logger=AuditLogger(tmp_path / "audit.jsonl"),
+        system_prompt="SYSTEM",
+        fewshot_prompt="FEWSHOT",
+        ticketing_client=ticketing,
+    )
+
+    pipeline.process_unread_emails()
+
+    assert ticketing.ticket_numbers == ["INC7050812", "INC7050813"]
+    assert len(mailbox.replies) == 1
+    assert "could not find them in servicenow" in mailbox.replies[0][1].lower()
+    assert "INC7050812" in mailbox.replies[0][1]
+    assert "INC7050813" in mailbox.replies[0][1]
+    assert ticketing.comment_updates == []

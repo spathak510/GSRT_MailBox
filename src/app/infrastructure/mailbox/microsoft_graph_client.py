@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
@@ -337,20 +338,38 @@ class MicrosoftGraphMailboxClient(MailboxClient):
 
         try:
             mailbox = quote(self._mailbox_user or "", safe="@.-_")
-            endpoint = f"/users/{mailbox}/messages/{quote(email_id, safe='')}/reply"
-            payload: dict = {
-                "message": {
+            encoded_email_id = quote(email_id, safe='')
+            draft = self._graph_post(
+                f"/users/{mailbox}/messages/{encoded_email_id}/createReply",
+                {},
+            )
+            draft_id = draft.get("id")
+            if not draft_id:
+                raise RuntimeError("Graph createReply did not return a draft message id.")
+
+            existing_body = (
+                draft.get("body", {}).get("content")
+                if isinstance(draft.get("body"), dict)
+                else ""
+            ) or ""
+
+            self._graph_patch(
+                f"/users/{mailbox}/messages/{quote(draft_id, safe='')}",
+                {
                     "body": {
                         "contentType": "HTML",
-                        "content": body,
+                        "content": self._merge_reply_html(body, existing_body),
                     },
                     "ccRecipients": [
                         {"emailAddress": {"address": addr}}
                         for addr in (cc_addresses or [])
-                    ]
-                }
-            }
-            self._graph_post(endpoint, payload)
+                    ],
+                },
+            )
+            self._graph_post(
+                f"/users/{mailbox}/messages/{quote(draft_id, safe='')}/send",
+                {},
+            )
         except RuntimeError as exc:
             self._log_graph_fallback(f"reply to email {email_id}", exc)
             cc_display = ", ".join(cc_addresses or []) or "(none)"
@@ -607,6 +626,29 @@ class MicrosoftGraphMailboxClient(MailboxClient):
 
     def _graph_post(self, endpoint: str, payload: dict) -> dict:
         return self._graph_request("POST", endpoint, payload)
+
+    def _graph_patch(self, endpoint: str, payload: dict) -> dict:
+        return self._graph_request("PATCH", endpoint, payload)
+
+    @staticmethod
+    def _merge_reply_html(custom_body: str, original_body: str) -> str:
+        if not original_body.strip():
+            return custom_body
+
+        custom_fragment = re.sub(r"(?is)^\s*<html[^>]*>\s*<body[^>]*>", "", custom_body)
+        custom_fragment = re.sub(r"(?is)</body>\s*</html>\s*$", "", custom_fragment)
+
+        body_open = re.search(r"(?is)<body[^>]*>", original_body)
+        if body_open:
+            insert_at = body_open.end()
+            return (
+                original_body[:insert_at]
+                + custom_fragment
+                + "<br/><br/>"
+                + original_body[insert_at:]
+            )
+
+        return custom_fragment + "<br/><br/>" + original_body
 
     def _graph_request(self, method: str, endpoint: str, payload: dict | None = None) -> dict:
         token = self._get_access_token()

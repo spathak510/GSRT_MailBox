@@ -56,3 +56,50 @@ def test_reply_email_falls_back_to_local_behavior_on_graph_error(capsys) -> None
 
     captured = capsys.readouterr()
     assert "[mailbox] reply to email email-123 | cc: support@example.com" in captured.out
+
+
+def test_reply_email_creates_threaded_reply_draft_before_sending() -> None:
+    client = build_client()
+    calls: list[tuple[str, str, dict | None]] = []
+
+    def fake_graph_request(method: str, endpoint: str, payload: dict | None = None) -> dict:
+        calls.append((method, endpoint, payload))
+        if method == "POST" and endpoint.endswith("/createReply"):
+            return {
+                "id": "draft-123",
+                "body": {
+                    "contentType": "HTML",
+                    "content": "<html><body><div>Original thread</div></body></html>",
+                },
+            }
+        return {}
+
+    client._graph_request = fake_graph_request  # type: ignore[method-assign]
+
+    client.reply_email("email-123", "<p>Hello</p>", ["support@example.com"])
+
+    assert calls == [
+        (
+            "POST",
+            "/users/mailbox@example.com/messages/email-123/createReply",
+            {},
+        ),
+        (
+            "PATCH",
+            "/users/mailbox@example.com/messages/draft-123",
+            {
+                "body": {
+                    "contentType": "HTML",
+                    "content": "<html><body><p>Hello</p><br/><br/><div>Original thread</div></body></html>",
+                },
+                "ccRecipients": [
+                    {"emailAddress": {"address": "support@example.com"}},
+                ],
+            },
+        ),
+        (
+            "POST",
+            "/users/mailbox@example.com/messages/draft-123/send",
+            {},
+        ),
+    ]

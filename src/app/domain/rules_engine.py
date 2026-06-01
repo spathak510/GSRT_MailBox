@@ -52,17 +52,27 @@ def _normalized_message_text(email: EmailMessage) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _extract_by_pattern(pattern: re.Pattern[str], email: EmailMessage) -> str | None:
-    match = pattern.search(_normalized_message_text(email))
-    return match.group(0).upper() if match else None
+
+def _extract_all_by_pattern(pattern: re.Pattern[str], email: EmailMessage) -> list[str]:
+    matches = pattern.findall(_normalized_message_text(email))
+    seen: set[str] = set()
+    ordered_matches: list[str] = []
+
+    for match in matches:
+        normalized = match.upper()
+        if normalized not in seen:
+            seen.add(normalized)
+            ordered_matches.append(normalized)
+
+    return ordered_matches
 
 
 def extract_incident_number(email: EmailMessage) -> str | None:
-    return _extract_by_pattern(_INCIDENT_RE, email)
+    return _extract_all_by_pattern(_INCIDENT_RE, email)
 
 
 def extract_adhoc_number(email: EmailMessage) -> str | None:
-    return _extract_by_pattern(_ADHOC_RE, email)
+    return _extract_all_by_pattern(_ADHOC_RE, email)
 
 
 def extract_ticket_number(email: EmailMessage) -> str | None:

@@ -5,8 +5,10 @@ import logging
 from dataclasses import replace
 from app.application.reply_builder import (
     build_closed_ticket_reply,
-    build_general_query_reply,
+    build_multi_incident_clarification_reply,
+    build_multi_incident_reply,
     build_no_ticket_found_reply,
+    build_no_ticket_found_into_mail_reply,
     build_reviewing_ticket_reply,
     build_add_comment_ticket_reply,
 )
@@ -31,6 +33,7 @@ from app.observability.metrics import Metrics
 logger = logging.getLogger(__name__)
 
 _TERMINAL_STATUSES = {TicketStatus.RESOLVED, TicketStatus.CANCELLED, TicketStatus.CLOSED}
+_OPEN_STATUSES = {TicketStatus.NEW, TicketStatus.IN_PROGRESS, TicketStatus.ON_HOLD}
 
 # UC4 Step 2: categories that must be moved silently — no reply sent
 _NO_REPLY_CATEGORIES: frozenset[str] = frozenset({"bot"})
@@ -78,18 +81,166 @@ class EmailSegregationPipeline:
     def fetch_unread(self, limit: int = 25) -> list:
         return self._mailbox_client.fetch_unread(limit=limit) 
 
+    def _reply_sender_name(self, email) -> str:
+        sender_name = (email.sender_name or "").strip()
+        if not sender_name:
+            return ""
+        return sender_name.split(",", 1)[0].strip()
+
+    def _finalize_processed_email(self, email, classification_result, action: str, reason: str) -> dict:
+        folder = self._folder_mapper.to_folder(classification_result.category)
+        self._mailbox_client.move_email(email.id, folder)
+        self._repository.save(email.id, classification_result.category, folder, reason)
+        self._metrics.increment("emails_processed")
+        self._audit_logger.log({
+            "email_id": email.id,
+            "category": classification_result.category,
+            "folder": folder,
+            "reason": reason,
+            "action": action,
+        })
+        logger.info(
+            "Processed email_id=%s category=%s folder=%s action=%s",
+            email.id,
+            classification_result.category,
+            folder,
+            action,
+        )
+        logger.info("Completed processing for email_id=%s", email.id)
+        return {"action": action, "reason": reason, "processed_count": 1}
+
+    def _collect_multi_incident_result(self, email, incident_number: str) -> tuple[TicketStatus, str]:
+        if self._ticketing_client is None:
+            return TicketStatus.NOT_FOUND, "Incident was not found in ServiceNow."
+
+        logger.info(
+            "Agent started processing to check the status for incident number %s ................",
+            incident_number,
+        )
+        status = self._ticketing_client.get_ticket_status(incident_number)
+        logger.info(
+            "Completed agent to check the status for incident number %s and status is %s ................",
+            incident_number,
+            status.value,
+        )
+
+        if status is TicketStatus.NOT_FOUND:
+            return status, "Incident was not found in ServiceNow."
+
+        if status in _TERMINAL_STATUSES:
+            return status, f"Incident is currently {status.value.replace('_', ' ')}."
+
+        comment_accuracy = getattr(self._ticketing_client, "comment_accuracy_validation", None)
+        extract_email_body = getattr(self._ticketing_client, "extract_email_body", lambda body: body)
+        match_percent = 0
+        if callable(comment_accuracy):
+            comment_result = comment_accuracy(incident_number, email)
+            match_percent = comment_result.get("match_percent", 0)
+
+        if match_percent < 70:
+            logger.info(
+                "Agent started processing to add comment to the incident number %s ................",
+                incident_number,
+            )
+            comment_added = self._ticketing_client.add_comment(
+                incident_number,
+                extract_email_body(email.body),
+            )
+            logger.info(
+                "Completed agent to add comment into the incident number : %s from email id: %s",
+                incident_number,
+                email.id,
+            )
+            if comment_added:
+                self._metrics.increment("emails_ticket_open_support_notified")
+                return (
+                    status,
+                    f"Incident is currently {status.value.replace('_', ' ')}. Your latest update was added to the ticket.",
+                )
+            return (
+                status,
+                f"Incident is currently {status.value.replace('_', ' ')}. We could not add your latest update to the ticket automatically.",
+            )
+
+        return (
+            status,
+            f"Incident is currently {status.value.replace('_', ' ')}. The latest ServiceNow comment already matches your email.",
+        )
+
+    def _handle_multi_incident_email(self, email, classification_result, incident_numbers: list[str]) -> dict:
+        incident_summaries: list[tuple[str, TicketStatus, str]] = []
+        for incident_number in incident_numbers:
+            status, summary = self._collect_multi_incident_result(email, incident_number)
+            incident_summaries.append((incident_number, status, summary))
+
+        statuses = [status for _, status, _ in incident_summaries]
+        all_open = bool(statuses) and all(status in _OPEN_STATUSES for status in statuses)
+
+        if statuses and all(status in _TERMINAL_STATUSES for status in statuses):
+            reply = build_multi_incident_reply(
+                sender_name=self._reply_sender_name(email),
+                incident_summaries=incident_summaries,
+            )
+            self._mailbox_client.reply_email(email.id, reply)
+            action = "replied: consolidated multi-incident summary"
+            reason = "All referenced incidents are already closed, cancelled, or resolved."
+        elif statuses and all(status is TicketStatus.NOT_FOUND for status in statuses):
+            reply = build_multi_incident_reply(
+                sender_name=self._reply_sender_name(email),
+                incident_summaries=incident_summaries,
+            )
+            self._mailbox_client.reply_email(email.id, reply)
+            action = "replied: consolidated multi-incident summary"
+            reason = "All referenced incidents were not found in ServiceNow."
+        elif all_open and len(incident_summaries) >= 2:
+            reply = build_multi_incident_clarification_reply(
+                sender_name=self._reply_sender_name(email),
+                incident_numbers=[incident_number for incident_number, _, _ in incident_summaries],
+            )
+            self._mailbox_client.reply_email(email.id, reply)
+            action = "replied: multi-incident clarification"
+            reason = "Multiple active incidents were found; clarification requested from the user."
+        else:
+            action = "no_reply: multi-incident comments updated"
+            reason = "Processed multiple incidents and updated active tickets without replying to the user."
+
+        response = self._finalize_processed_email(
+            email,
+            classification_result,
+            action,
+            reason,
+        )
+        self._audit_logger.log({
+            "email_id": email.id,
+            "action": "multi_incident_summary",
+            "incidents": [
+                {"ticket_number": incident_number, "ticket_status": status.value, "summary": summary}
+                for incident_number, status, summary in incident_summaries
+            ],
+        })
+        return response
+
     
     def _is_incident_number(self, email, incident_number) -> None:   
-        name_part, last_part = email.sender_name.rsplit(",", 1)
+        name_part = self._reply_sender_name(email)
 
         logger.info("Agent started processing to check the status for incident number %s ................", incident_number)
         status = self._ticketing_client.get_ticket_status(incident_number)
         logger.info("Completed agent to check the status for incident number %s and status is %s ................", incident_number, status.value)
 
         response = {'action':None,'reason':None,'processed_count':0}
-        
 
-        if status in _TERMINAL_STATUSES: # If ticket is already closed/resolved/cancelled, reply with closure message and do not create a new ticket
+        if status is TicketStatus.NOT_FOUND: # If ticket number is not valid or ticket not found, reply with ticket not found message
+            logger.info("Agent started processing to reply ticket-not-found into the system ................")
+            reply = build_no_ticket_found_reply(sender_name=name_part,incident_number=incident_number)
+            self._mailbox_client.reply_email(email.id, reply)
+            self._metrics.increment("emails_ticket_missing_reply")
+            response['action'] = "replied: Ticket not found." ,
+            response['reason'] = "Invalid ticket number or ticket not found for {incident_number}".format(incident_number=incident_number)
+            response['processed_count'] += 1
+            logger.info("Completed agent to reply ticket-not-found into the system : %s", email.id)
+        
+        elif status in _TERMINAL_STATUSES: # If ticket is already closed/resolved/cancelled, reply with closure message and do not create a new ticket
             logger.info("Agent started processing to reply closed ticket emails ................")
             reply = build_closed_ticket_reply(incident_number, status, sender_name=name_part)
             self._mailbox_client.reply_email(email.id, reply)
@@ -99,7 +250,7 @@ class EmailSegregationPipeline:
             response['processed_count'] += 1
             logger.info("Completed agent to reply closed ticket emails : %s", email.id)
 
-        elif status in {TicketStatus.NEW, TicketStatus.IN_PROGRESS, TicketStatus.ON_HOLD}: # If ticket is open but sender is asking to create a new one, reply with a message that ticket is already open and support will be notified. Notify support with the email content and add a comment to the existing ticket for visibility.
+        elif status in _OPEN_STATUSES: # If ticket is open but sender is asking to create a new one, reply with a message that ticket is already open and support will be notified. Notify support with the email content and add a comment to the existing ticket for visibility.
             logger.info("Agent started processing to reply open ticket emails ................")
             logger.info("Agent started processing to check comment accuracy for incident number %s ................", incident_number)
             comment_accuracy = self._ticketing_client.comment_accuracy_validation(incident_number, email)
@@ -129,7 +280,7 @@ class EmailSegregationPipeline:
 
         else:
             logger.info("Agent started processing to reply ticket-not-found emails ................")
-            reply = build_no_ticket_found_reply(sender_name=name_part)
+            reply = build_no_ticket_found_into_mail_reply(sender_name=name_part)
             self._mailbox_client.reply_email(email.id, reply)
             self._metrics.increment("emails_ticket_missing_reply")
             response['action'] = "replied: Ticket not found." ,
@@ -236,61 +387,71 @@ class EmailSegregationPipeline:
             logger.info("Completed agent to classify the mails and category is %s ................", result.category)
             action = None
 
-            logger.info("Agent started processing to check for ServiceNow emails ................")
-            servicenow_recipient_present = is_servicenow_cced(email)
-            logger.info("Completed agent to check for ServiceNow :%s emails : %s", servicenow_recipient_present, email.id)
-
             logger.info("Agent started processing to extract incident number from mails ................")
-            incident_number = extract_incident_number(email)
-            logger.info("Completed agent to extract incident number : %s from mails : %s", incident_number, email.id)
-            response = {'action':None,'reason':None,'processed_count':0}
-            
-            if ( incident_number and f"Incident {incident_number} has been opened for you" in email.subject) or servicenow_recipient_present:
-                result = replace(result, category="Service-now")
+            incident_numbers = extract_incident_number(email)
+            logger.info("Completed agent to extract incident numbers : %s from mails : %s", incident_numbers, email.id)
 
-            if (result.category in self._general_categories or result.category in _NO_REPLY_CATEGORIES) and not (incident_number or servicenow_recipient_present):
-                action = f"no_reply:{result.category}"
-                logger.info(
-                    "Suppressing reply email_id=%s category=%s no_incident_or_servicenow=true",
-                    email.id,
-                    result.category,
-                )
-                self._metrics.increment("emails_general_or_bot_skipped")
-                response['action'] = action ,
-                response['reason'] = "No incident number or ServiceNow recipient detected, classified as {result.category}".format(result=result)
-                response['processed_count'] += 1
-
-            elif not incident_number:
+            if len(incident_numbers) > 1:
+                response = self._handle_multi_incident_email(email, result, incident_numbers)
+            elif len(incident_numbers) == 1:
+                for index, incident_number in enumerate(incident_numbers):
+                    response = self.core_process_email(
+                        incident_number,
+                        result,
+                        email,
+                        finalize_email=index == len(incident_numbers) - 1,
+                    )
+            else:
                 logger.info("Agent started processing to reply ticket-not-found emails ................")
                 logger.info(
                     "Replying ticket-not-found email_id=%s category=%s",
                     email.id,
                     result.category,
                 )
-                reply = build_no_ticket_found_reply(sender_name=email.sender_name)  
+                reply = build_no_ticket_found_into_mail_reply(sender_name=email.sender_name)  
                 self._mailbox_client.reply_email(email.id, reply)
                 response['action'] = "replied: Ticket not found." ,
                 response['reason'] = "No incident number or ServiceNow recipient detected, classified as {result.category}".format(result=result)
                 response['processed_count'] += 1
                 logger.info("Completed agent to reply ticket-not-found emails : %s", email.id)
+    
+        return response 
+    
+    def core_process_email(self, incident_number, AI_result, email, finalize_email: bool = True):
+        # This method can be used to core process email and can be called from process_unread_emails or can be used independently for processing single email
 
-            else:
-                if incident_number:
-                    response = self._is_incident_number(email, incident_number)
+        logger.info("Agent started processing to check for ServiceNow emails ................")
+        servicenow_recipient_present = is_servicenow_cced(email)
+        logger.info("Completed agent to check for ServiceNow :%s emails : %s", servicenow_recipient_present, email.id)
+        response = {'action':None,'reason':None,'processed_count':0}
+            
+        if ( incident_number and f"Incident {incident_number} has been opened for you" in email.subject) or servicenow_recipient_present:
+            AI_result = replace(AI_result, category="Service-now")
 
-                else:
-                    logger.info("Agent started processing to reply ticket-not-found emails ................")
-                    reply = build_no_ticket_found_reply(sender_name=email.sender_name)  
-                    self._mailbox_client.reply_email(email.id, reply)
-                    response['action'] = "replied: Ticket not found." ,
-                    response['reason'] = "No incident number or ServiceNow recipient detected, classified as {result.category}".format(result=result)
-                    response['processed_count'] += 1
-                    logger.info("Completed agent to reply ticket-not-found emails : %s", email.id)
+        if (AI_result.category in self._general_categories or AI_result.category in _NO_REPLY_CATEGORIES) and not (incident_number or servicenow_recipient_present):
+            action = f"no_reply:{AI_result.category}"
+            logger.info(
+                "Suppressing reply email_id=%s category=%s no_incident_or_servicenow=true",
+                email.id,
+                AI_result.category,
+            )
+            self._metrics.increment("emails_general_or_bot_skipped")
+            response['action'] = action ,
+            response['reason'] = "No incident number or ServiceNow recipient detected, classified as {AI_result.category}".format(AI_result=AI_result)
+            response['processed_count'] += 1
 
-            folder = self._folder_mapper.to_folder(result.category)
+        try:
+            response = self._is_incident_number(email, incident_number)
+        except Exception as e:
+            logger.error("Error processing incident number %s for email_id=%s: %s", incident_number, email.id, str(e))
+            response['action'] = "error_processing_incident_number" ,
+            response['reason'] = f"Error processing incident number {incident_number}: {str(e)}"
+            response['processed_count'] += 1    
+        if finalize_email:
+            folder = self._folder_mapper.to_folder(AI_result.category)
             self._mailbox_client.move_email(email.id, folder)
-            reason = result.reason if result.reason else response.get('reason')
-            self._repository.save(email.id, result.category, folder, reason)
+            reason = AI_result.reason if AI_result.reason else response.get('reason')
+            self._repository.save(email.id, AI_result.category, folder, reason)
             self._metrics.increment("emails_processed")
 
             response['action'] = response['action'] ,
@@ -299,7 +460,7 @@ class EmailSegregationPipeline:
             
             self._audit_logger.log({
                 "email_id": email.id,
-                "category": result.category,
+                "category": AI_result.category,
                 "folder": folder,
                 "reason": reason,
                 "action": response['action'],
@@ -307,10 +468,17 @@ class EmailSegregationPipeline:
             logger.info(
                 "Processed email_id=%s category=%s folder=%s action=%s",
                 email.id,
-                result.category,
+                AI_result.category,
                 folder,
-                action,
+                response['action'],
             )
             logger.info("Completed processing for email_id=%s", email.id)
-            continue
-        return response    
+        else:
+            logger.info(
+                "Processed incident number %s for email_id=%s. Deferring email finalization until remaining incident numbers are handled.",
+                incident_number,
+                email.id,
+            )
+        return response
+
+       
