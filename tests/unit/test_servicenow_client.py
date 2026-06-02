@@ -83,3 +83,15 @@ def test_clean_text_removes_header_labels_without_truncating_message() -> None:
     )
 
     assert cleaned == "please review this update. alice bob today incident team"
+
+
+def test_constructor_config_overrides_env_for_incident_table(monkeypatch) -> None:
+    monkeypatch.setenv("IHG_SERVICENOW_URL", "https://env-instance.service-now.com/api/now/table/incident")
+
+    client = ServiceNowTicketingClient(
+        base_url="https://ctor-instance.service-now.com",
+        username="svc_user",
+        password="svc_password",
+    )
+
+    assert client._incident_table_base_url() == "https://ctor-instance.service-now.com/api/now/table/incident"

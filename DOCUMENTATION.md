@@ -1,6 +1,6 @@
 # Mailbox Auto Assistant — Full Technical Documentation
 
-> **Version:** 0.1.0 | **Python:** ≥ 3.10 | **Last Updated:** March 2026
+> **Version:** 0.1.0 | **Python:** >= 3.10 | **Last Updated:** June 2026
 
 ---
 
@@ -28,7 +28,7 @@
 
 ## 1. Overview
 
-**Mailbox Auto Assistant** is a production-ready Python application that automatically processes incoming emails from a Microsoft 365 mailbox. It classifies emails into categories, routes them to the appropriate mailbox folders, sends context-aware auto-replies, and tracks every action in a persistent audit log.
+**Mailbox Auto Assistant** is a Python application that processes unread emails from a Microsoft 365 mailbox, classifies them, routes them to folders, and applies ServiceNow-aware handling for incident-based support threads. It also records actions in a persistent audit log and exposes a Flask API for manual runs, health, and webhook management.
 
 ### Core capabilities
 
@@ -37,12 +37,13 @@
 | Email fetching | Reads unread emails from Microsoft 365 inbox via Microsoft Graph API |
 | Classification | Deterministic keyword/sender rules → AI fallback (OpenAI GPT) |
 | Folder routing | Moves emails to mapped folders based on category |
-| Smart auto-reply | Sends different replies based on email type and ticket status |
-| Ticket detection | Extracts ticket/reference numbers (e.g. `INC-12345`) and checks their status |
+| Smart auto-reply | Sends different replies based on ticket state, multi-incident state, and general classification |
+| Ticket detection | Extracts incident numbers from email content and checks their ServiceNow status |
 | VIP escalation | Detects Director/VP senders and flags for manual review |
+| Multi-incident handling | Consolidates multiple incidents in one email and can request clarification when two or more are active |
 | Deduplication | Tracks processed email IDs in SQLite or PostgreSQL |
 | Audit logging | Appends every action as a JSON line to an audit log file |
-| REST API | Optional Flask server to trigger processing and inspect emails |
+| REST API | Optional Flask server for health checks, manual processing, unread listing, sender lookup, and Graph webhook management |
 
 ---
 
@@ -70,7 +71,7 @@ The application follows a strict **layered / clean architecture**:
 └─────────────────────────────────────────────────────┘
 ```
 
-**Rule:** inner layers never import from outer layers. All adapters implement abstract base classes defined in the infrastructure layer, making them fully swappable.
+**Rule:** inner layers never import from outer layers. Most external integrations are injected through adapter-style clients, with mailbox and AI abstractions still defined explicitly in the infrastructure layer.
 
 ---
 
@@ -89,38 +90,55 @@ Sender is Director/VP/Chief/CTO/…?
   ──YES──► Log WARNING
            Audit: action = "vip_escalation"
            Save to DB: category = "escalation"
-           ⚠️  Stays in Inbox — requires manual discussion with ESCALATION_EMAIL contact
+           Notify support engineers with the original message attached
+           Stays in Inbox for manual review
            ──► Next email
         │ NO
         ▼
 Ticket/reference number in subject or body? (e.g. INC-12345, REF-7890)
-  ──YES──► Check ticket status via TicketingClient
+  ──YES──► Extract all incident numbers from the email
+     │
+     ├─► More than one incident
+     │       │
+     │       ├─► All incidents terminal
+     │       │       Reply with consolidated closed-ticket summary
+     │       │
+     │       ├─► All incidents not found
+     │       │       Reply with consolidated not-found summary
+     │       │
+     │       ├─► Two or more incidents active (`new` / `in_progress` / `on_hold`)
+     │       │       Add comments to active tickets when email differs from latest ServiceNow comment
+     │       │       Reply asking which active incident the sender wants reviewed
+     │       │
+     │       └─► Mixed state with fewer than two active incidents
+     │               Add comments to active tickets when needed
+     │               No reply sent to sender
+     │
+         └─► Exactly one incident
            │
            ├─► RESOLVED / CANCELLED / CLOSED
-           │       Reply: "Ticket {N} is {STATUS}, please raise a new ticket"
-           │       CC: Support Engineers
-           │       Save to DB: category = "ticket_closed"
-           │       ──► Next email
+           │       Reply with closed-ticket message
            │
-           └─► OPEN ──► Continue to classify (no auto-reply for open tickets)
-        │ NO ticket found
-        ▼
-Classify email
-  1. Try deterministic rules (keyword + sender match)
-  2. If no rule matches → call OpenAI GPT for AI classification
-        │
-        ▼
-Move email to mapped folder
-        │
-        ▼
-Business category? (not in GENERAL_CATEGORIES)
-  ──YES──► Reply: "Please raise a support ticket"
-           CC: Support Engineers
-  ──NO───► Reply: "Thanks for reaching out, team will respond shortly"
-           CC: Support Engineers
-        │
-        ▼
-Save to DB · Increment metrics · Append to audit log
+           ├─► NOT_FOUND
+           │       Reply with ticket-not-found message
+           │
+           └─► NEW / IN_PROGRESS / ON_HOLD
+             Check comment match accuracy
+             Add comment to ServiceNow when needed
+             Depending on thread context, may notify support / suppress reply
+      │ NO incident found
+      ▼
+    Classify email
+      1. Try deterministic rules (keyword + sender match)
+      2. If no rule matches → call OpenAI GPT for AI classification
+      │
+      ▼
+    Category in GENERAL_CATEGORIES?
+      ──YES──► Send general acknowledgement
+      ──NO───► Send no-ticket / create-ticket guidance
+      │
+      ▼
+    Move email to mapped folder when finalized · Save to DB · Increment metrics · Append to audit log
 ```
 
 ---
@@ -173,7 +191,7 @@ mailbox_auto_assistant/
 │       │
 │       ├── domain/
 │       │   ├── models.py         # EmailMessage, Rule, ClassificationResult, TicketStatus
-│       │   ├── rules_engine.py   # classify_with_rules, extract_ticket_number, is_vip_sender
+│       │   ├── rules_engine.py   # rule matching, incident extraction, VIP/bot detection
 │       │   └── folder_mapper.py  # category → folder name mapping
 │       │
 │       ├── infrastructure/
@@ -184,8 +202,8 @@ mailbox_auto_assistant/
 │       │   │   ├── base.py           # MailboxClient ABC
 │       │   │   └── microsoft_graph_client.py  # MS Graph implementation
 │       │   ├── ticketing/
-│       │   │   ├── base.py           # TicketingClient ABC
-│       │   │   └── stub_client.py    # Stub (always returns OPEN)
+│       │   │   ├── base.py           # ServiceNowTicketingClient
+│       │   │   └── stub_client.py    # Test stub client
 │       │   └── persistence/
 │       │       ├── db.py             # SQLite / PostgreSQL connection & schema init
 │       │       ├── models.py         # ProcessedEmailRecord dataclass
@@ -219,20 +237,24 @@ All core data structures. All are **frozen dataclasses** (immutable).
 
 ```python
 class TicketStatus(str, Enum):
-    OPEN       = "open"
-    RESOLVED   = "resolved"
-    CANCELLED  = "cancelled"
-    CLOSED     = "closed"
-    NOT_FOUND  = "not_found"
+  NEW = "new"
+  IN_PROGRESS = "in_progress"
+  ON_HOLD = "on_hold"
+  RESOLVED = "resolved"
+  CLOSED = "closed"
+  CANCELLED = "cancelled"
+  NOT_FOUND = "not_found"
 
 @dataclass(frozen=True)
 class EmailMessage:
     id: str
     subject: str
     body: str
-    sender: str            # email address
+  sender: str
     received_at: datetime
-    sender_name: str = ""  # display name (populated from Graph API)
+  sender_name: str = ""
+  to_addresses: list[str] = field(default_factory=list)
+  cc_addresses: list[str] = field(default_factory=list)
 
 @dataclass(frozen=True)
 class Rule:
@@ -255,12 +277,19 @@ Pure functions — no external dependencies.
 
 | Function | Signature | Description |
 |---|---|---|
-| `classify_with_rules` | `(email, rules) → (category \| None, reason)` | Iterates rules; checks sender + keywords in subject+body |
-| `extract_ticket_number` | `(email) → str \| None` | Regex `\b[A-Z]{2,8}[-_]?\d{4,10}\b` — matches `INC-12345`, `REF7890`, etc. |
-| `is_vip_sender` | `(email, vip_titles) → bool` | Checks if `sender_name` OR email `body` contains any VIP title (Director, VP, Chief, CEO, etc.) |
+| `classify_with_rules` | `(email, rules) → (category \| None, reason)` | Iterates rules; checks sender + keywords in subject/body |
+| `extract_incident_number` | `(email) → list[str]` | Returns distinct `INC...` numbers found in subject/body |
+| `extract_adhoc_number` | `(email) → list[str]` | Returns distinct `ADH...` numbers found in subject/body |
+| `extract_ticket_number` | `(email) → list[str]` | Returns incidents first, otherwise ADH references |
+| `extract_ref_message_id` | `(email) → str \| None` | Extracts `Ref Msg` / reference ID tokens from the thread |
+| `is_vip_sender` | `(email, vip_titles) → tuple[bool, str]` | Checks sender name first, then body signature for VIP titles |
+| `is_auto_notification_email` | `(email) → tuple[bool, str]` | Detects bot / system-generated emails by sender and keywords |
+| `is_servicenow_cced` | `(email) → bool` | Returns true when `ihg@service-now.com` is in TO or CC |
 
-**Ticket number pattern examples that match:**
-- `INC-12345`, `REF-7890`, `TICKET12345`, `SR-100001`, `JIRA-9999`
+**Examples recognized by the current rules engine:**
+- `INC7050808`
+- `ADH123456`
+- `Ref Msg: 1234-ABCD`
 
 ---
 
@@ -293,8 +322,8 @@ The central orchestrator. Injected with all infrastructure clients at constructi
 | `audit_logger` | `AuditLogger` | JSONL audit trail |
 | `system_prompt` | `str` | OpenAI system message |
 | `fewshot_prompt` | `str` | OpenAI few-shot examples |
-| `ticketing_client` | `TicketingClient \| None` | Ticket status lookups |
-| `support_engineer_emails` | `list[str] \| None` | CC recipients on auto-replies |
+| `ticketing_client` | `ServiceNowTicketingClient \| None` | ServiceNow status lookups and comment updates |
+| `support_engineer_emails` | `list[str] \| None` | Support notification recipients |
 | `escalation_email` | `str \| None` | Contact for VIP escalation review |
 | `vip_titles` | `list[str] \| None` | Title strings that trigger VIP path |
 | `general_categories` | `list[str] \| None` | Categories treated as non-business |
@@ -303,8 +332,16 @@ The central orchestrator. Injected with all infrastructure clients at constructi
 
 ```python
 def fetch_unread(self, limit: int = 25) -> list[EmailMessage]
-def process_unread_emails(self, limit: int = 25) -> int  # returns count processed
+def process_unread_emails(self, limit: int = 25) -> dict  # current implementation returns the last response payload
 ```
+
+**Important internal handlers:**
+
+| Method | Purpose |
+|---|---|
+| `_handle_multi_incident_email` | Consolidates multiple incident numbers and decides whether to reply or suppress reply |
+| `core_process_email` | Main single-incident processing path used when exactly one incident is found |
+| `_is_incident_number` | Low-level ServiceNow state handling for one incident |
 
 **Metrics tracked:**
 
@@ -313,6 +350,9 @@ def process_unread_emails(self, limit: int = 25) -> int  # returns count process
 | `emails_processed` | Email classified and moved normally |
 | `emails_vip_escalated` | Sender is a VIP title |
 | `emails_ticket_closed_reply` | Referenced ticket is Resolved/Cancelled/Closed |
+| `emails_ticket_open_support_notified` | Active incident comment update path is used |
+| `emails_ticket_missing_reply` | Ticket-not-found reply is sent |
+| `emails_bot_skipped` | Auto-notification email is skipped |
 
 ---
 
@@ -340,13 +380,16 @@ Concatenates the system prompt, few-shot examples, and the email content into a 
 
 ### `src/app/application/reply_builder.py`
 
-Three template functions — no external dependencies.
+HTML reply templates. The ServiceNow link in replies is derived from environment configuration (`IHG_SERVICENOW_PORTAL_URL`, `IHG_SERVICENOW_BASE_URL`, or `IHG_SERVICENOW_URL`).
 
-| Function | Triggered when | CC Support? |
-|---|---|---|
-| `build_open_ticket_reply(subject)` | Business email with no ticket number | Yes |
-| `build_general_query_reply()` | Non-business / general email | Yes |
-| `build_closed_ticket_reply(ticket_number, status)` | Ticket is Resolved/Cancelled/Closed | Yes |
+| Function | Triggered when |
+|---|---|
+| `build_no_ticket_found_into_mail_reply()` | No incident number is found in the email |
+| `build_no_ticket_found_reply()` | A referenced incident is not found in ServiceNow |
+| `build_general_query_reply()` | General-category mail with no incident |
+| `build_closed_ticket_reply()` | Ticket is resolved / cancelled / closed |
+| `build_multi_incident_reply()` | Consolidated multi-incident closed/not-found summary |
+| `build_multi_incident_clarification_reply()` | Two or more active incidents require sender clarification |
 
 ---
 
@@ -366,16 +409,15 @@ class MailboxClient(ABC):
 
 #### `microsoft_graph_client.py` — `MicrosoftGraphMailboxClient`
 
-Communicates with **Microsoft Graph API v1.0** using Resource Owner Password Credentials (ROPC) OAuth2 flow.
+Communicates with **Microsoft Graph API v1.0** and falls back to local stub behavior when Graph is not fully configured or a runtime Graph call fails.
 
 **Key behaviours:**
 
-- Token is cached and auto-refreshed 60 seconds before expiry
-- When `GRAPH_*` env vars are **not** all set → operates in **local fallback mode** (prints actions, returns in-memory email list)
-- `fetch_unread` — calls `/users/{user}/mailFolders/inbox/messages?$filter=isRead eq false`
-- `move_email` — calls `/users/{user}/messages/{id}/move`
-- `reply_email` — calls `/users/{user}/messages/{id}/reply` with CC recipients
-- `create_folders` / `_ensure_folder` — creates a folder if it doesn't already exist
+- Token is cached and auto-refreshed before expiry
+- Graph mode is enabled only when tenant ID, client ID, client secret, mailbox user, and mailbox password are present
+- When Graph is unavailable, mailbox actions log a warning and fall back to safe local behavior instead of crashing the pipeline
+- `reply_email` uses `createReply` → draft `PATCH` → `/send` so the response stays threaded with the original email
+- Supports Graph webhook subscription registration and renewal
 
 **Graph permissions required:**
 - `Mail.ReadWrite`
@@ -404,16 +446,20 @@ class AIClient(ABC):
 
 ### Ticketing — `src/app/infrastructure/ticketing/`
 
-#### `base.py` — `TicketingClient` (ABC)
+#### `base.py` — `ServiceNowTicketingClient`
 
-```python
-class TicketingClient(ABC):
-    def get_ticket_status(self, ticket_number: str) -> TicketStatus: ...
-```
+Current ticket integration is a concrete ServiceNow client, not an abstract ticketing interface.
+
+**Key behaviours:**
+
+- Resolves ServiceNow URLs from constructor arguments or environment variables
+- Looks up incident state through the incident table API
+- Adds comments to incidents when mail content does not match the latest stored comment
+- Supports either username/password auth or explicit `Authorization` / `Cookie` headers when provided
 
 #### `stub_client.py` — `StubTicketingClient`
 
-Always returns `TicketStatus.OPEN`. **Replace** with a real ServiceNow / Jira / Zendesk implementation by subclassing `TicketingClient` and wiring it in `main.py`.
+Test stub used in unit and integration tests to simulate ticket states.
 
 ---
 
@@ -459,14 +505,14 @@ Appends one JSON line per event to `data/audit_log.jsonl`.
 **Event fields vary by action type:**
 
 ```jsonc
-// Normal email
-{"email_id": "...", "category": "finance", "folder": "Finance", "reason": "Matched keyword 'invoice'", "action": "replied:open_ticket_request"}
+// Normal classified email
+{"email_id": "...", "category": "finance", "folder": "Finance", "reason": "Matched keyword 'invoice'", "action": "replied: Ticket not found."}
 
 // VIP escalation
 {"email_id": "...", "action": "vip_escalation", "sender": "...", "sender_name": "John Director", "subject": "...", "note": "Requires discussion with: mahes@company.com"}
 
-// Closed ticket
-{"email_id": "...", "action": "replied:ticket_INC-123_is_resolved", "ticket_number": "INC-123", "ticket_status": "resolved"}
+// Multi-incident summary
+{"email_id": "...", "action": "multi_incident_summary", "incidents": [{"ticket_number": "INC7295029", "ticket_status": "in_progress", "summary": "..."}]}
 ```
 
 ---
@@ -486,19 +532,25 @@ metrics.snapshot()  # → {"emails_processed": 5, ...}
 
 ### `src/app/settings/config.py`
 
-All configuration is loaded from environment variables (or `.env` file at the project root).
+All configuration is loaded from environment variables (or `.env` at the project root).
 
 ```python
 @dataclass(frozen=True)
 class AppConfig:
     app_env: str
     log_level: str
+    log_file_path: Path
     database_url: str
     audit_log_path: Path
     prompts_dir: Path
     rules_path: Path
     mapping_path: Path
     openai_api_key: str | None
+    servicenow_base_url: str | None
+    servicenow_url: str | None
+    servicenow_portal_url: str | None
+    servicenow_username: str | None
+    servicenow_password: str | None
     graph_tenant_id: str | None
     graph_client_id: str | None
     graph_client_secret: str | None
@@ -509,6 +561,9 @@ class AppConfig:
     escalation_email: str | None
     vip_titles: list[str]
     general_categories: list[str]
+    worker_interval_seconds: int
+    webhook_base_url: str | None
+    webhook_client_state: str
 ```
 
 ---
@@ -521,7 +576,12 @@ Start with: `python scripts/run_api.py` → listens on `http://0.0.0.0:5000`
 
 #### `GET /health`
 ```json
-{"status": "ok", "env": "dev"}
+{
+  "status": "ok",
+  "env": "dev",
+  "poller": {"enabled": true, "interval_seconds": 60, "last_run": null, "run_count": 0},
+  "webhook": {"enabled": false, "subscription_id": null, "expires_at": null, "error": null}
+}
 ```
 
 #### `GET /api/v1/emails?limit=25`
@@ -541,8 +601,20 @@ Returns unread emails from the mailbox.
 #### `POST /api/v1/process?limit=25`
 Triggers a full pipeline run.
 ```json
-{"processed": 3}
+{"processed": {"action": "...", "reason": "...", "processed_count": 1}}
 ```
+
+#### `GET /api/v1/sender-titles?email_id=...`
+Uses Outlook COM on Windows to resolve sender details such as full name, job title, department, and company.
+
+#### `GET /api/v1/webhook/status`
+Returns current Graph webhook subscription status.
+
+#### `POST /api/v1/webhook/register`
+Registers a Graph webhook subscription when `WEBHOOK_BASE_URL` is configured.
+
+#### `POST /api/v1/webhook/renew`
+Renews the active Graph webhook subscription.
 
 ---
 
@@ -634,10 +706,13 @@ pytest -q
 
 | File | What it tests |
 |---|---|
+| `tests/unit/test_logging_setup.py` | Logging configuration and file-handler setup |
+| `tests/unit/test_microsoft_graph_client.py` | Graph client request behavior and fallback handling |
 | `tests/unit/test_rules_engine.py` | Keyword + sender matching; no-match path |
 | `tests/unit/test_folder_mapper.py` | Case-insensitive lookup; default fallback |
 | `tests/unit/test_prompt_builder.py` | Prompt string construction |
-| `tests/integration/test_pipeline_flow.py` | Full pipeline run with stubs; DB persistence; folder move |
+| `tests/unit/test_servicenow_client.py` | ServiceNow URL resolution, auth header behavior, and text cleanup |
+| `tests/integration/test_pipeline_flow.py` | End-to-end pipeline scenarios including VIP, bot, ServiceNow, and multi-incident handling |
 
 ### Stubs used in tests
 
@@ -672,11 +747,18 @@ pip install -r requirements.txt
 # App
 APP_ENV=dev
 LOG_LEVEL=INFO
+LOG_FILE_PATH=data/logs/app.log
+AUDIT_LOG_PATH=data/audit_log.jsonl
 
 # Database (SQLite default — no setup needed)
 DATABASE_URL=sqlite:///data/email_segregation.db
 
-# Microsoft Graph (leave blank to use local fallback mode)
+# Paths
+PROMPTS_DIR=data/prompts
+RULES_PATH=data/rules/classification_rules.yaml
+MAPPING_PATH=data/mappings/category_folder_map.yaml
+
+# Microsoft Graph
 MAILBOX_PROVIDER=graph
 GRAPH_TENANT_ID=<your-tenant-id>
 GRAPH_CLIENT_ID=<your-client-id>
@@ -685,14 +767,26 @@ GRAPH_MAILBOX_USER=support@yourdomain.com
 GRAPH_MAILBOX_PASSWORD=<mailbox-password>
 GRAPH_TIMEOUT_SECONDS=20
 
+# ServiceNow
+IHG_SERVICENOW_BASE_URL=https://your-instance.service-now.com
+IHG_SERVICENOW_URL=https://your-instance.service-now.com/api/now/table/incident?sysparm_query=number=
+IHG_SERVICENOW_PORTAL_URL=https://your-instance.service-now.com
+IHG_SERVICENOW_USERNAME=<servicenow-user>
+IHG_SERVICENOW_PASSWORD=<servicenow-password>
+
 # OpenAI
 OPENAI_API_KEY=sk-...
 
 # Smart reply configuration
 SUPPORT_ENGINEER_EMAILS=eng1@company.com,eng2@company.com
 ESCALATION_EMAIL=mahes@company.com
-VIP_TITLES=Director,VP,Vice President,Chief,CTO,CEO,COO,CFO,SVP,EVP
-GENERAL_CATEGORIES=general,marketing,newsletter,junk
+VIP_TITLES=Director,VP,Vice President,Chief,CTO,CEO,COO,CFO,SVP,EVP,Head,Head of,Lead
+GENERAL_CATEGORIES=marketing,newsletter,junk
+
+# Poller / webhook
+WORKER_INTERVAL_SECONDS=43200
+WEBHOOK_BASE_URL=
+WEBHOOK_CLIENT_STATE=mailbox-auto-assistant-secret
 ```
 
 ### 3. Seed rules & bootstrap folders
@@ -720,6 +814,7 @@ python scripts/run_api.py
 |---|---|---|
 | `APP_ENV` | `dev` | Environment name (dev/staging/prod) |
 | `LOG_LEVEL` | `INFO` | Python logging level |
+| `LOG_FILE_PATH` | `data/logs/app.log` | File path for application logs |
 | `DATABASE_URL` | `sqlite:///data/email_segregation.db` | DB connection string |
 | `AUDIT_LOG_PATH` | `data/audit_log.jsonl` | Path to audit log file |
 | `PROMPTS_DIR` | `data/prompts` | Directory containing prompt text files |
@@ -732,32 +827,32 @@ python scripts/run_api.py
 | `GRAPH_MAILBOX_USER` | — | Mailbox UPN (e.g. `support@contoso.com`) |
 | `GRAPH_MAILBOX_PASSWORD` | — | Mailbox account password (ROPC flow) |
 | `GRAPH_TIMEOUT_SECONDS` | `20` | HTTP timeout for Graph API calls |
+| `IHG_SERVICENOW_BASE_URL` | — | ServiceNow instance base URL |
+| `IHG_SERVICENOW_URL` | — | ServiceNow incident lookup URL prefix or incident table URL |
+| `IHG_SERVICENOW_PORTAL_URL` | — | User-facing ServiceNow portal link used in email replies |
+| `IHG_SERVICENOW_USERNAME` | — | ServiceNow username |
+| `IHG_SERVICENOW_PASSWORD` | — | ServiceNow password |
+| `IHG_SERVICENOW_BASIC_AUTH` | _(empty)_ | Optional explicit Authorization header for ServiceNow |
+| `IHG_SERVICENOW_COOKIE` | _(empty)_ | Optional explicit Cookie header for ServiceNow |
 | `SUPPORT_ENGINEER_EMAILS` | _(empty)_ | Comma-separated CC list for auto-replies |
 | `ESCALATION_EMAIL` | — | Contact email shown in VIP escalation logs |
-| `VIP_TITLES` | `Director,VP,Vice President,Chief,CTO,CEO,COO,CFO,SVP,EVP` | Comma-separated VIP title keywords |
-| `GENERAL_CATEGORIES` | `general,marketing,newsletter,junk` | Categories treated as non-business |
+| `VIP_TITLES` | `Director,VP,Vice President,Chief,CTO,CEO,COO,CFO,SVP,EVP,Head,Head of,Lead` | Comma-separated VIP title keywords |
+| `GENERAL_CATEGORIES` | `marketing,newsletter,junk` | Categories treated as general / non-business |
+| `WORKER_INTERVAL_SECONDS` | `43200` | Background mailbox polling interval in seconds (`0` disables poller) |
+| `WEBHOOK_BASE_URL` | — | Public HTTPS base URL used for Graph webhook callbacks |
+| `WEBHOOK_CLIENT_STATE` | `mailbox-auto-assistant-secret` | Shared secret used to validate webhook notifications |
 
 ---
 
 ## 17. Extending the Application
 
-### Plug in a real ticketing system (ServiceNow, Jira, Zendesk)
+### Extend ServiceNow handling
 
-```python
-# src/app/infrastructure/ticketing/servicenow_client.py
-from app.domain.models import TicketStatus
-from app.infrastructure.ticketing.base import TicketingClient
+The current application already uses `ServiceNowTicketingClient` from `src/app/infrastructure/ticketing/base.py`. The most common extension points are:
 
-class ServiceNowClient(TicketingClient):
-    def __init__(self, base_url: str, username: str, password: str) -> None:
-        ...
-
-    def get_ticket_status(self, ticket_number: str) -> TicketStatus:
-        # Call ServiceNow REST API
-        ...
-```
-
-Then in `src/app/main.py` replace `StubTicketingClient()` with `ServiceNowClient(...)`.
+- refine comment matching rules
+- add support for new ServiceNow fields
+- customize how active-incident notification and comment updates are handled
 
 ---
 
@@ -789,63 +884,28 @@ hr: HR
 
 ### Customize auto-reply templates
 
-Edit the functions in `src/app/application/reply_builder.py`. The three functions are:
-- `build_open_ticket_reply(subject)` — business query, no ticket
-- `build_general_query_reply()` — non-business query
-- `build_closed_ticket_reply(ticket_number, status)` — ticket is terminal
+Edit the functions in `src/app/application/reply_builder.py`. Current templates include:
+- `build_no_ticket_found_into_mail_reply()`
+- `build_no_ticket_found_reply()`
+- `build_general_query_reply()`
+- `build_closed_ticket_reply()`
+- `build_multi_incident_reply()`
+- `build_multi_incident_clarification_reply()`
 
+### Current integration coverage highlights
 
-### Test Coverage Summary
-All tests are located in test_pipeline_flow.py and all 6 tests pass:
+The integration suite currently covers:
 
-Bot/auto-notification by sender pattern
-Sender: no-reply@monitoring.internal
-To: gsrt@ihg.com
-CC:
-Subject: Daily infrastructure health report
-Body: Automated alert digest for last 24 hours.
-Expected: No response, no move action branch, audit action no_action:auto_notification
-
-Bot/auto-notification by keyword in content
-Sender: ops.team@ihg.com
-To: gsrt@ihg.com
-CC:
-Subject: Nightly Appsrv status update
-Body: Appsrv checks completed successfully for all nodes.
-Expected: No response, no action, marked bot path
-
-VIP escalation by sender_name
-Sender: jane.doe@ihg.com
-To: gsrt@ihg.com
-CC:
-Subject: Urgent review needed for client escalation
-Body: Please prioritize this request.
-Sender_name: Jane Doe, VP Engineering
-Expected: VIP escalation path, no auto-reply, no folder move
-
-VIP escalation by signature in body
-Sender: michael.lee@ihg.com
-To: gsrt@ihg.com
-CC:
-Subject: Request for billing exception
-Body: Please review this request. Regards, Michael Lee, Director Finance
-Expected: VIP escalation path, no auto-reply, no folder move
-
-ServiceNow-threaded email, missing both INC and ADH
-Sender: user.one@client.com
-To: gsrt@ihg.com
-CC: ihg@servicenow.com
-Subject: Need support on previous issue
-Body: Please help with my request urgently.
-Expected: Reply No Ticket Found Please Create One, then end
-
-ServiceNow-threaded email, INC present but ADH missing
-Sender: user.two@client.com
-To: ihg@servicenow.com
-CC: gsrt@ihg.com
-Subject: Follow-up for INC7050808
-Body: Kindly review this case.
-Expected: Reply No Ticket Found Please Create One, then end
+- DB persistence and folder moves for classified emails
+- VIP escalation without reply or folder move
+- bot / auto-notification suppression
+- open ServiceNow incident update paths
+- closed ticket replies
+- multiple incidents in one email, including:
+  - all active incidents
+  - mixed active and terminal incidents
+  - all terminal incidents
+  - all-not-found incidents
 
 ServiceNow-threaded email, ADH present but INC missing
 Sender: user.three@client.com

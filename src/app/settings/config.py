@@ -18,6 +18,11 @@ class AppConfig:
     rules_path: Path
     mapping_path: Path
     openai_api_key: str | None
+    servicenow_base_url: str | None
+    servicenow_url: str | None
+    servicenow_portal_url: str | None
+    servicenow_username: str | None
+    servicenow_password: str | None
     graph_tenant_id: str | None
     graph_client_id: str | None
     graph_client_secret: str | None
@@ -49,6 +54,11 @@ def load_config() -> AppConfig:
         rules_path=ROOT_DIR / os.getenv("RULES_PATH", "data/rules/classification_rules.yaml"),
         mapping_path=ROOT_DIR / os.getenv("MAPPING_PATH", "data/mappings/category_folder_map.yaml"),
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
+        servicenow_base_url=os.getenv("IHG_SERVICENOW_BASE_URL") or None,
+        servicenow_url=os.getenv("IHG_SERVICENOW_URL") or None,
+        servicenow_portal_url=os.getenv("IHG_SERVICENOW_PORTAL_URL") or None,
+        servicenow_username=os.getenv("IHG_SERVICENOW_USERNAME") or None,
+        servicenow_password=os.getenv("IHG_SERVICENOW_PASSWORD") or None,
         graph_tenant_id=os.getenv("GRAPH_TENANT_ID") or None,
         graph_client_id=os.getenv("GRAPH_CLIENT_ID") or None,
         graph_client_secret=os.getenv("GRAPH_CLIENT_SECRET") or None,

@@ -174,7 +174,11 @@ class EmailSegregationPipeline:
             incident_summaries.append((incident_number, status, summary))
 
         statuses = [status for _, status, _ in incident_summaries]
-        all_open = bool(statuses) and all(status in _OPEN_STATUSES for status in statuses)
+        active_incident_numbers = [
+            incident_number
+            for incident_number, status, _ in incident_summaries
+            if status in _OPEN_STATUSES
+        ]
 
         if statuses and all(status in _TERMINAL_STATUSES for status in statuses):
             reply = build_multi_incident_reply(
@@ -192,14 +196,14 @@ class EmailSegregationPipeline:
             self._mailbox_client.reply_email(email.id, reply)
             action = "replied: consolidated multi-incident summary"
             reason = "All referenced incidents were not found in ServiceNow."
-        elif all_open and len(incident_summaries) >= 2:
+        elif len(active_incident_numbers) >= 2:
             reply = build_multi_incident_clarification_reply(
                 sender_name=self._reply_sender_name(email),
-                incident_numbers=[incident_number for incident_number, _, _ in incident_summaries],
+                incident_numbers=active_incident_numbers,
             )
             self._mailbox_client.reply_email(email.id, reply)
             action = "replied: multi-incident clarification"
-            reason = "Multiple active incidents were found; clarification requested from the user."
+            reason = "Two or more active incidents were found; clarification requested from the user."
         else:
             action = "no_reply: multi-incident comments updated"
             reason = "Processed multiple incidents and updated active tickets without replying to the user."

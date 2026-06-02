@@ -690,6 +690,61 @@ def test_multiple_active_incidents_send_clarification_reply(tmp_path) -> None:
     assert "INC7050902" in mailbox.replies[0][1]
 
 
+def test_two_active_and_one_resolved_incidents_still_send_clarification_reply(tmp_path) -> None:
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    init_schema(conn)
+
+    email = EmailMessage(
+        id="snow-open-mixed",
+        subject="Follow-up on INC7295029 INC7295190 and INC7295311",
+        body="Please update the new incident and old incidents.",
+        sender="user@example.com",
+        sender_name="User Mixed, Analyst",
+        received_at=datetime.now(timezone.utc),
+        to_addresses=["ihg@servicenow.com"],
+    )
+
+    mailbox = StubMailboxClient(unread_emails=[email])
+    ticketing = StubTicketingClient(
+        TicketStatus.ON_HOLD,
+        status_by_ticket={
+            "INC7295029": TicketStatus.IN_PROGRESS,
+            "INC7295190": TicketStatus.NEW,
+            "INC7295311": TicketStatus.RESOLVED,
+        },
+        match_percent_by_ticket={
+            "INC7295029": 10,
+            "INC7295190": 10,
+        },
+    )
+    pipeline = EmailSegregationPipeline(
+        mailbox_client=mailbox,
+        ai_client=StubAIClient(),
+        repository=ProcessedEmailRepository(conn),
+        folder_mapper=FolderMapper({}, default_folder="General"),
+        rules=[],
+        metrics=Metrics(),
+        audit_logger=AuditLogger(tmp_path / "audit.jsonl"),
+        system_prompt="SYSTEM",
+        fewshot_prompt="FEWSHOT",
+        ticketing_client=ticketing,
+        support_engineer_emails=["support@company.com"],
+    )
+
+    pipeline.process_unread_emails()
+
+    assert ticketing.ticket_numbers == ["INC7295029", "INC7295190", "INC7295311"]
+    assert ticketing.comment_updates == [
+        ("INC7295029", "Please update the new incident and old incidents."),
+        ("INC7295190", "Please update the new incident and old incidents."),
+    ]
+    assert len(mailbox.replies) == 1
+    assert "INC7295029" in mailbox.replies[0][1]
+    assert "INC7295190" in mailbox.replies[0][1]
+    assert "INC7295311" not in mailbox.replies[0][1]
+
+
 def test_multiple_incidents_all_terminal_send_single_new_case_reply(tmp_path) -> None:
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row

@@ -70,6 +70,13 @@ def build_pipeline() -> EmailSegregationPipeline:
         timeout_seconds=cfg.graph_timeout_seconds,
     )
     ai_client = OpenAIClient(api_key=cfg.openai_api_key)
+    ticketing_client = ServiceNowTicketingClient(
+        base_url=cfg.servicenow_base_url,
+        incident_table_url=cfg.servicenow_url,
+        portal_url=cfg.servicenow_portal_url,
+        username=cfg.servicenow_username,
+        password=cfg.servicenow_password,
+    )
 
     rules = _load_rules(cfg.rules_path)
     folder_mapper = FolderMapper(_load_mapping(cfg.mapping_path), default_folder="General")
@@ -87,7 +94,7 @@ def build_pipeline() -> EmailSegregationPipeline:
         audit_logger=AuditLogger(cfg.audit_log_path),
         system_prompt=system_prompt,
         fewshot_prompt=fewshot_prompt,
-        ticketing_client=ServiceNowTicketingClient(),
+        ticketing_client=ticketing_client,
         support_engineer_emails=cfg.support_engineer_emails,
         escalation_email=cfg.escalation_email,
         vip_titles=cfg.vip_titles,

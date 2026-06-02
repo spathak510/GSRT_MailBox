@@ -45,6 +45,12 @@ GRAPH_CLIENT_ID=<client-id>
 GRAPH_CLIENT_SECRET=<client-secret>
 GRAPH_MAILBOX_USER=<user@yourdomain.com>
 GRAPH_TIMEOUT_SECONDS=20
+
+IHG_SERVICENOW_BASE_URL=https://your-instance.service-now.com
+IHG_SERVICENOW_URL=https://your-instance.service-now.com/api/now/table/incident?sysparm_query=number=
+IHG_SERVICENOW_PORTAL_URL=https://your-instance.service-now.com
+IHG_SERVICENOW_USERNAME=<servicenow-user>
+IHG_SERVICENOW_PASSWORD=<servicenow-password>
 ```
 
 When these values are provided, the pipeline reads unread emails from Inbox and moves them to mapped folders using Microsoft Graph.
