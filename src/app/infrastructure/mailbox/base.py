@@ -7,7 +7,7 @@ from app.domain.models import EmailMessage
 
 class MailboxClient(ABC):
     @abstractmethod
-    def fetch_unread(self, limit: int = 25) -> list[EmailMessage]:
+    def fetch_unread(self, limit: int = 25, is_unread_mail: bool = None) -> list[EmailMessage]:
         raise NotImplementedError
 
     @abstractmethod

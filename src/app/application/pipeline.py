@@ -29,6 +29,7 @@ from app.infrastructure.persistence.repository import ProcessedEmailRepository
 from app.infrastructure.ticketing.base import ServiceNowTicketingClient
 from app.observability.audit_logger import AuditLogger
 from app.observability.metrics import Metrics
+from app.settings.config import load_config
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ _OPEN_STATUSES = {TicketStatus.NEW, TicketStatus.IN_PROGRESS, TicketStatus.ON_HO
 # UC4 Step 2: categories that must be moved silently — no reply sent
 _NO_REPLY_CATEGORIES: frozenset[str] = frozenset({"bot"})
 
-
+cfg = load_config()
 class EmailSegregationPipeline:
     def __init__(
         self,
@@ -70,16 +71,17 @@ class EmailSegregationPipeline:
         self._ticketing_client = ticketing_client
         self._support_engineer_emails = support_engineer_emails or []
         self._escalation_email = escalation_email
-        self._vip_titles = vip_titles or [
-            "Director", "VP", "Vice President", "Chief",
-            "CTO", "CEO", "COO", "CFO", "SVP", "EVP",
-        ]
+        self._vip_titles = vip_titles or []
         self._general_categories = set(
             general_categories or ["marketing", "newsletter", "junk"]
         )
 
     def fetch_unread(self, limit: int = 25) -> list:
-        return self._mailbox_client.fetch_unread(limit=limit) 
+        if cfg.is_unread_mail:
+            return self._mailbox_client.fetch_unread(limit=limit, is_unread_mail=cfg.is_unread_mail)
+        else:
+            return self._mailbox_client.fetch_unread(limit=limit)
+        
 
     def _reply_sender_name(self, email) -> str:
         sender_name = (email.sender_name or "").strip()
@@ -117,7 +119,7 @@ class EmailSegregationPipeline:
             "Agent started processing to check the status for incident number %s ................",
             incident_number,
         )
-        status = self._ticketing_client.get_ticket_status(incident_number)
+        status = self._ticketing_client.get_inc_ticket_status(incident_number)
         logger.info(
             "Completed agent to check the status for incident number %s and status is %s ................",
             incident_number,
@@ -229,7 +231,7 @@ class EmailSegregationPipeline:
         name_part = self._reply_sender_name(email)
 
         logger.info("Agent started processing to check the status for incident number %s ................", incident_number)
-        status = self._ticketing_client.get_ticket_status(incident_number)
+        status = self._ticketing_client.get_inc_ticket_status(incident_number)
         logger.info("Completed agent to check the status for incident number %s and status is %s ................", incident_number, status.value)
 
         response = {'action':None,'reason':None,'processed_count':0}
@@ -301,7 +303,7 @@ class EmailSegregationPipeline:
         # Step 1: Fetch unread emails from the mailbox by Agent
 
         logger.info( "Starting email agent to fetch unread emails from the mailbox .............................")
-        unread = self._mailbox_client.fetch_unread(limit=limit)
+        unread = self._mailbox_client.fetch_unread(limit=limit, is_unread_mail=cfg.is_unread_mail)
         logger.info("Completed email agent to fetch unread emails from the mailbox : %d", len(unread))
         response = {'action':None,'reason':None,'processed_count':0}
        
@@ -313,6 +315,7 @@ class EmailSegregationPipeline:
             logger.info("Agent started processing to check for VIP mails ................")
             vip, vip_detected_by = is_vip_sender(email, self._vip_titles)
             if vip:
+                vip_folder = self._folder_mapper.to_folder("escalation")
                 logger.warning(
                     "VIP sender detected — email_id=%s from='%s <%s>'. Flagged for manual review by escalation contact: %s",
                     email.id,
@@ -350,8 +353,9 @@ class EmailSegregationPipeline:
                     "vip_detected_by": vip_detected_by,
                     "note": f"Requires discussion with: {self._escalation_email or 'escalation contact'}",
                 })
-                self._repository.save(email.id, "escalation", "Inbox", "VIP sender — flagged for manual review")
+                self._repository.save(email.id, "escalation", vip_folder, "VIP sender — flagged for manual review")
                 self._metrics.increment("emails_vip_escalated")
+                self._mailbox_client.move_email(email.id, vip_folder)
                 response['action'] = "no_replied: VIP sender detected " ,
                 response['reason'] = "VIP sender — flagged for manual review"
                 response['processed_count'] += 1

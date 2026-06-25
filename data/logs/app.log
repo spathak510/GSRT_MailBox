@@ -968,3 +968,250 @@ UnboundLocalError: cannot access local variable 'action' where it is not associa
 2026-06-01 14:08:23,924 | INFO | app.application.pipeline | Processed email_id=AAMkADM0ZTQ4ZDJiLTQ4MjgtNDg4My1iMDg2LTczY2ZiNTk5MGFkNQBGAAAAAACa8LVPfjxOQZYksxi2WYj_BwD52zSa9vOrQ6efrfy-oR_-AAAAAAEMAAD52zSa9vOrQ6efrfy-oR_-AAAvmxPOAAA= category=support folder=Support action=replied: consolidated multi-incident summary
 2026-06-01 14:08:23,925 | INFO | app.application.pipeline | Completed processing for email_id=AAMkADM0ZTQ4ZDJiLTQ4MjgtNDg4My1iMDg2LTczY2ZiNTk5MGFkNQBGAAAAAACa8LVPfjxOQZYksxi2WYj_BwD52zSa9vOrQ6efrfy-oR_-AAAAAAEMAAD52zSa9vOrQ6efrfy-oR_-AAAvmxPOAAA=
 2026-06-01 14:08:23,929 | INFO | werkzeug | 127.0.0.1 - - [01/Jun/2026 14:08:23] "POST /api/v1/process HTTP/1.1" 200 -
+2026-06-02 15:28:07,986 | INFO | app.main | Initializing mailbox assistant env=dev log_level=INFO log_file=C:\Users\sono.pathak\Projects\mailbox_auto_assistant\data\logs\app.log
+2026-06-02 15:28:09,696 | INFO | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-06-02 15:28:09,696 | INFO | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-24 14:57:07,945 | INFO | app.main | Initializing mailbox assistant env=dev log_level=INFO log_file=C:\Users\sono.pathak\Projects\mailbox_auto_assistant\data\logs\app.log
+2026-06-24 14:57:08,632 | INFO | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-06-24 14:57:08,634 | INFO | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-24 14:58:05,424 | INFO | app.main | Initializing mailbox assistant env=dev log_level=INFO log_file=C:\Users\sono.pathak\Projects\mailbox_auto_assistant\data\logs\app.log
+2026-06-24 14:58:06,101 | INFO | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-06-24 14:58:06,101 | INFO | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-24 15:20:33,877 | INFO | app.application.pipeline | Starting processing --------------------------------
+2026-06-24 15:20:43,622 | INFO | app.application.pipeline | Starting email agent to fetch unread emails from the mailbox .............................
+2026-06-24 15:20:45,858 | WARNING | app.infrastructure.mailbox.microsoft_graph_client | Graph mailbox action failed while trying to fetch unread emails. Falling back to local behavior. error=Token request failed: {"error":"invalid_grant","error_description":"AADSTS50126: Error validating credentials due to invalid username or password. Trace ID: b4600bbc-a415-4be1-bed4-e1586ab57f00 Correlation ID: b47ce2b3-c211-4946-9de1-13308b3cc4ab Timestamp: 2026-06-24 09:50:45Z","error_codes":[50126],"timestamp":"2026-06-24 09:50:45Z","trace_id":"b4600bbc-a415-4be1-bed4-e1586ab57f00","correlation_id":"b47ce2b3-c211-4946-9de1-13308b3cc4ab","error_uri":"https://login.microsoftonline.com/error?code=50126"}
+2026-06-24 15:20:48,094 | INFO | app.application.pipeline | Completed email agent to fetch unread emails from the mailbox : 0
+2026-06-24 15:21:59,196 | INFO | app.main | Initializing mailbox assistant env=dev log_level=INFO log_file=C:\Users\sono.pathak\Projects\mailbox_auto_assistant\data\logs\app.log
+2026-06-24 15:22:00,047 | INFO | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-06-24 15:22:00,047 | INFO | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-24 15:22:12,628 | INFO | app.application.pipeline | Starting processing --------------------------------
+2026-06-24 15:22:16,230 | INFO | app.application.pipeline | Starting email agent to fetch unread emails from the mailbox .............................
+2026-06-24 15:22:19,768 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 15:22:19] "GET /api/v1/sender-titles?email_id=Sono.Pathak2@ihg.com HTTP/1.1" 200 -
+2026-06-24 15:22:28,230 | INFO | app.application.pipeline | Completed email agent to fetch unread emails from the mailbox : 1
+2026-06-24 15:22:33,286 | INFO | app.application.pipeline | Agent started processing to check for VIP mails ................
+2026-06-24 15:22:42,741 | WARNING | app.application.pipeline | VIP sender detected — email_id=AAMkADM0ZTQ4ZDJiLTQ4MjgtNDg4My1iMDg2LTczY2ZiNTk5MGFkNQBGAAAAAACa8LVPfjxOQZYksxi2WYj_BwD52zSa9vOrQ6efrfy-oR_-AAAAAAEMAAD52zSa9vOrQ6efrfy-oR_-AABAII-_AAA= from='Pathak, Sono (Accenture), Corporate Vendor <Sono.Pathak2@ihg.com>'. Flagged for manual review by escalation contact: sono.pathak@ihg.com
+2026-06-24 15:24:16,280 | INFO | app.application.pipeline | VIP mail detected by agent and support team will notified for this mails : AAMkADM0ZTQ4ZDJiLTQ4MjgtNDg4My1iMDg2LTczY2ZiNTk5MGFkNQBGAAAAAACa8LVPfjxOQZYksxi2WYj_BwD52zSa9vOrQ6efrfy-oR_-AAAAAAEMAAD52zSa9vOrQ6efrfy-oR_-AABAII-_AAA=
+2026-06-24 15:24:16,285 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 15:24:16] "POST /api/v1/process HTTP/1.1" 200 -
+2026-06-24 15:28:30,251 | INFO | app.application.pipeline | Starting processing --------------------------------
+2026-06-24 15:28:32,297 | INFO | app.application.pipeline | Starting email agent to fetch unread emails from the mailbox .............................
+2026-06-24 15:28:35,690 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 15:28:35] "GET /api/v1/sender-titles?email_id=Sono.Pathak2@ihg.com HTTP/1.1" 200 -
+2026-06-24 15:28:36,820 | INFO | app.application.pipeline | Completed email agent to fetch unread emails from the mailbox : 1
+2026-06-24 15:28:40,335 | INFO | app.application.pipeline | Agent started processing to check for VIP mails ................
+2026-06-24 15:29:22,677 | WARNING | app.application.pipeline | VIP sender detected — email_id=AAMkADM0ZTQ4ZDJiLTQ4MjgtNDg4My1iMDg2LTczY2ZiNTk5MGFkNQBGAAAAAACa8LVPfjxOQZYksxi2WYj_BwD52zSa9vOrQ6efrfy-oR_-AAAAAAEMAAD52zSa9vOrQ6efrfy-oR_-AABAII--AAA= from='Pathak, Sono (Accenture), Corporate Vendor <Sono.Pathak2@ihg.com>'. Flagged for manual review by escalation contact: sono.pathak@ihg.com
+2026-06-24 15:29:25,657 | INFO | app.application.pipeline | VIP mail detected by agent and support team will notified for this mails : AAMkADM0ZTQ4ZDJiLTQ4MjgtNDg4My1iMDg2LTczY2ZiNTk5MGFkNQBGAAAAAACa8LVPfjxOQZYksxi2WYj_BwD52zSa9vOrQ6efrfy-oR_-AAAAAAEMAAD52zSa9vOrQ6efrfy-oR_-AABAII--AAA=
+2026-06-24 15:29:25,661 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 15:29:25] "POST /api/v1/process HTTP/1.1" 200 -
+2026-06-24 15:45:11,264 | INFO | app.main | Initializing mailbox assistant env=dev log_level=INFO log_file=C:\Users\sono.pathak\Projects\mailbox_auto_assistant\data\logs\app.log
+2026-06-24 15:45:13,724 | INFO | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-06-24 15:45:13,724 | INFO | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-24 15:49:24,616 | INFO | app.application.pipeline | Starting processing --------------------------------
+2026-06-24 15:49:26,569 | INFO | app.application.pipeline | Starting email agent to fetch unread emails from the mailbox .............................
+2026-06-24 15:49:29,546 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 15:49:29] "[35m[1mPOST /api/v1/process HTTP/1.1[0m" 500 -
+2026-06-24 15:49:29,876 | ERROR | werkzeug | Error on request:
+Traceback (most recent call last):
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\werkzeug\serving.py", line 371, in run_wsgi
+    execute(self.server.app)
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\werkzeug\serving.py", line 332, in execute
+    application_iter = app(environ, start_response)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\flask\app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\flask\app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sono.pathak\Projects\mailbox_auto_assistant\src\app\api\flask_app.py", line 156, in process_emails
+    processed = pipeline.process_unread_emails(limit=limit)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sono.pathak\Projects\mailbox_auto_assistant\src\app\application\pipeline.py", line 304, in process_unread_emails
+    unread = self._mailbox_client.fetch_unread(limit=limit)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sono.pathak\Projects\mailbox_auto_assistant\src\app\infrastructure\mailbox\microsoft_graph_client.py", line 260, in fetch_unread
+    payload = self._graph_get(endpoint)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sono.pathak\Projects\mailbox_auto_assistant\src\app\infrastructure\mailbox\microsoft_graph_client.py", line 631, in _graph_get
+    return self._graph_request("GET", endpoint)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sono.pathak\Projects\mailbox_auto_assistant\src\app\infrastructure\mailbox\microsoft_graph_client.py", line 672, in _graph_request
+    with urlopen(request, timeout=self._timeout_seconds) as response:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\urllib\request.py", line 215, in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\urllib\request.py", line 515, in open
+    response = self._open(req, data)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\urllib\request.py", line 532, in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\urllib\request.py", line 492, in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\urllib\request.py", line 1392, in https_open
+    return self.do_open(http.client.HTTPSConnection, req,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\urllib\request.py", line 1344, in do_open
+    h.request(req.get_method(), req.selector, req.data, headers,
+  File "C:\Program Files\Python312\Lib\http\client.py", line 1319, in request
+    self._send_request(method, url, body, headers, encode_chunked)
+  File "C:\Program Files\Python312\Lib\http\client.py", line 1330, in _send_request
+    self.putrequest(method, url, **skips)
+  File "C:\Program Files\Python312\Lib\http\client.py", line 1164, in putrequest
+    self._validate_path(url)
+  File "C:\Program Files\Python312\Lib\http\client.py", line 1264, in _validate_path
+    raise InvalidURL(f"URL can't contain control characters. {url!r} "
+http.client.InvalidURL: URL can't contain control characters. '/v1.0/users/sa_gwz.gapi@ihg.onmicrosoft.com/mailFolders/inbox/messages?$top=25&$select=id,subject,bodyPreview,from,receivedDateTime,toRecipients,ccRecipients,isRead&$orderby=receivedDateTime desc' (found at least ' ')
+2026-06-24 18:28:01,771 | INFO | app.main | Initializing mailbox assistant env=dev log_level=INFO log_file=C:\Users\sono.pathak\Projects\mailbox_auto_assistant\data\logs\app.log
+2026-06-24 18:28:02,707 | INFO | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-06-24 18:28:02,709 | INFO | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-24 18:28:34,559 | INFO | app.application.pipeline | Starting processing --------------------------------
+2026-06-24 18:28:37,683 | INFO | app.application.pipeline | Starting email agent to fetch unread emails from the mailbox .............................
+2026-06-24 18:30:37,812 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:30:37] "[35m[1mPOST /api/v1/process HTTP/1.1[0m" 500 -
+2026-06-24 18:30:37,965 | ERROR | werkzeug | Error on request:
+Traceback (most recent call last):
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\werkzeug\serving.py", line 371, in run_wsgi
+    execute(self.server.app)
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\werkzeug\serving.py", line 332, in execute
+    application_iter = app(environ, start_response)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\flask\app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\flask\app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\sono.pathak\Projects\mailbox_auto_assistant\venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sono.pathak\Projects\mailbox_auto_assistant\src\app\api\flask_app.py", line 156, in process_emails
+    processed = pipeline.process_unread_emails(limit=limit)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sono.pathak\Projects\mailbox_auto_assistant\src\app\application\pipeline.py", line 309, in process_unread_emails
+    unread = self._mailbox_client.fetch_unread(limit=limit)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sono.pathak\Projects\mailbox_auto_assistant\src\app\infrastructure\mailbox\microsoft_graph_client.py", line 263, in fetch_unread
+    payload = self._graph_get(endpoint)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sono.pathak\Projects\mailbox_auto_assistant\src\app\infrastructure\mailbox\microsoft_graph_client.py", line 634, in _graph_get
+    return self._graph_request("GET", endpoint)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\sono.pathak\Projects\mailbox_auto_assistant\src\app\infrastructure\mailbox\microsoft_graph_client.py", line 675, in _graph_request
+    with urlopen(request, timeout=self._timeout_seconds) as response:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\urllib\request.py", line 215, in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\urllib\request.py", line 515, in open
+    response = self._open(req, data)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\urllib\request.py", line 532, in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\urllib\request.py", line 492, in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\urllib\request.py", line 1392, in https_open
+    return self.do_open(http.client.HTTPSConnection, req,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\urllib\request.py", line 1344, in do_open
+    h.request(req.get_method(), req.selector, req.data, headers,
+  File "C:\Program Files\Python312\Lib\http\client.py", line 1319, in request
+    self._send_request(method, url, body, headers, encode_chunked)
+  File "C:\Program Files\Python312\Lib\http\client.py", line 1330, in _send_request
+    self.putrequest(method, url, **skips)
+  File "C:\Program Files\Python312\Lib\http\client.py", line 1164, in putrequest
+    self._validate_path(url)
+  File "C:\Program Files\Python312\Lib\http\client.py", line 1264, in _validate_path
+    raise InvalidURL(f"URL can't contain control characters. {url!r} "
+http.client.InvalidURL: URL can't contain control characters. '/v1.0/users/sa_gwz.gapi@ihg.onmicrosoft.com/mailFolders/inbox/messages?$top=25&$select=id,subject,bodyPreview,from,receivedDateTime,toRecipients,ccRecipients,isRead&$orderby=receivedDateTime desc' (found at least ' ')
+2026-06-24 18:33:51,690 | INFO | app.main | Initializing mailbox assistant env=dev log_level=INFO log_file=C:\Users\sono.pathak\Projects\mailbox_auto_assistant\data\logs\app.log
+2026-06-24 18:33:52,636 | INFO | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-06-24 18:33:52,638 | INFO | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-24 18:34:56,582 | INFO | app.main | Initializing mailbox assistant env=dev log_level=INFO log_file=C:\Users\sono.pathak\Projects\mailbox_auto_assistant\data\logs\app.log
+2026-06-24 18:34:57,297 | INFO | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-06-24 18:34:57,298 | INFO | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-24 18:35:11,015 | INFO | app.application.pipeline | Starting processing --------------------------------
+2026-06-24 18:35:12,149 | INFO | app.application.pipeline | Starting email agent to fetch unread emails from the mailbox .............................
+2026-06-24 18:35:48,365 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:35:48] "GET /api/v1/sender-titles?email_id=Sono.Pathak2@ihg.com HTTP/1.1" 200 -
+2026-06-24 18:36:14,551 | INFO | app.main | Initializing mailbox assistant env=dev log_level=INFO log_file=C:\Users\sono.pathak\Projects\mailbox_auto_assistant\data\logs\app.log
+2026-06-24 18:36:15,193 | INFO | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-06-24 18:36:15,194 | INFO | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-24 18:36:28,736 | INFO | app.application.pipeline | Starting processing --------------------------------
+2026-06-24 18:36:31,136 | INFO | app.application.pipeline | Starting email agent to fetch unread emails from the mailbox .............................
+2026-06-24 18:36:57,245 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=Sono.Pathak2@ihg.com HTTP/1.1" 200 -
+2026-06-24 18:36:57,343 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=sono.pathak@accenture.com HTTP/1.1" 200 -
+2026-06-24 18:36:57,428 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=Shaik.Mohiddin@ihg.com HTTP/1.1" 200 -
+2026-06-24 18:36:57,487 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=Sono.Pathak2@ihg.com HTTP/1.1" 200 -
+2026-06-24 18:36:57,552 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:57,612 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:57,659 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:57,704 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:57,747 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=Shaik.Mohiddin@ihg.com HTTP/1.1" 200 -
+2026-06-24 18:36:57,803 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=Shaik.Mohiddin@ihg.com HTTP/1.1" 200 -
+2026-06-24 18:36:57,873 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=Ramanpreet.Singh@ihg.com HTTP/1.1" 200 -
+2026-06-24 18:36:57,913 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:57,972 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:57] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:58,020 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:58] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:58,102 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:58] "GET /api/v1/sender-titles?email_id=Sono.Pathak2@ihg.com HTTP/1.1" 200 -
+2026-06-24 18:36:58,185 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:58] "GET /api/v1/sender-titles?email_id=sa_gwz.gapi@ihg.onmicrosoft.com HTTP/1.1" 200 -
+2026-06-24 18:36:58,284 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:58] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:58,354 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:58] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:58,416 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:58] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:58,463 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:58] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:58,532 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:58] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:58,588 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:58] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:58,630 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:58] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:58,671 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:58] "GET /api/v1/sender-titles?email_id=noreply_ihg@engage.mail.microsoft HTTP/1.1" 200 -
+2026-06-24 18:36:58,745 | INFO | werkzeug | 127.0.0.1 - - [24/Jun/2026 18:36:58] "GET /api/v1/sender-titles?email_id=Sono.Pathak2@ihg.com HTTP/1.1" 200 -
+2026-06-25 09:57:29,635 | INFO | app.main | Initializing mailbox assistant env=dev log_level=INFO log_file=C:\Users\sono.pathak\Projects\mailbox_auto_assistant\data\logs\app.log
+2026-06-25 09:57:30,445 | INFO | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-06-25 09:57:30,445 | INFO | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-25 10:37:43,058 | INFO | app.main | Initializing mailbox assistant env=dev log_level=INFO log_file=C:\Users\sono.pathak\Projects\mailbox_auto_assistant\data\logs\app.log
+2026-06-25 10:37:44,028 | INFO | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-06-25 10:37:44,029 | INFO | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-25 10:39:24,522 | INFO | app.application.pipeline | Starting processing --------------------------------
+2026-06-25 10:39:26,797 | INFO | app.application.pipeline | Starting email agent to fetch unread emails from the mailbox .............................
+2026-06-25 10:40:53,014 | INFO | werkzeug | 127.0.0.1 - - [25/Jun/2026 10:40:53] "GET /api/v1/sender-titles?email_id=sono.pathak@accenture.com HTTP/1.1" 200 -
+2026-06-25 10:40:53,017 | INFO | app.application.pipeline | Completed email agent to fetch unread emails from the mailbox : 1
+2026-06-25 10:41:00,619 | INFO | app.application.pipeline | Agent started processing to check for VIP mails ................
+2026-06-25 10:41:04,140 | INFO | app.application.pipeline | Completed agent to check for VIP mails ................
+2026-06-25 10:41:05,248 | INFO | app.application.pipeline | Agent started processing to check for auto-notification mails ................
+2026-06-25 10:41:10,652 | INFO | app.application.pipeline | Agent started processing to classify the mails ................
+2026-06-25 10:41:21,399 | INFO | httpx | HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-06-25 10:41:27,486 | INFO | app.application.pipeline | Completed agent to classify the mails and category is general ................
+2026-06-25 10:41:30,129 | INFO | app.application.pipeline | Agent started processing to extract incident number from mails ................
+2026-06-25 10:41:39,809 | INFO | app.application.pipeline | Completed agent to extract incident numbers : ['INC7052380'] from mails : AAMkADM0ZTQ4ZDJiLTQ4MjgtNDg4My1iMDg2LTczY2ZiNTk5MGFkNQBGAAAAAACa8LVPfjxOQZYksxi2WYj_BwD52zSa9vOrQ6efrfy-oR_-AAAAAAEMAAD52zSa9vOrQ6efrfy-oR_-AABAII-9AAA=
+2026-06-25 10:42:03,617 | INFO | app.application.pipeline | Agent started processing to check for ServiceNow emails ................
+2026-06-25 10:42:19,198 | INFO | app.application.pipeline | Completed agent to check for ServiceNow :False emails : AAMkADM0ZTQ4ZDJiLTQ4MjgtNDg4My1iMDg2LTczY2ZiNTk5MGFkNQBGAAAAAACa8LVPfjxOQZYksxi2WYj_BwD52zSa9vOrQ6efrfy-oR_-AAAAAAEMAAD52zSa9vOrQ6efrfy-oR_-AABAII-9AAA=
+2026-06-25 10:42:39,036 | INFO | app.application.pipeline | Agent started processing to check the status for incident number INC7052380 ................

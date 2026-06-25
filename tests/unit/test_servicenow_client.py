@@ -6,7 +6,7 @@ from app.domain.models import TicketStatus
 from app.infrastructure.ticketing.base import ServiceNowTicketingClient
 
 
-def test_get_ticket_status_uses_incident_table_query(monkeypatch) -> None:
+def test_get_inc_ticket_status_uses_incident_table_query(monkeypatch) -> None:
     captured: dict = {}
 
     def fake_get(url, headers, auth, params, timeout):
@@ -31,7 +31,7 @@ def test_get_ticket_status_uses_incident_table_query(monkeypatch) -> None:
 
     client = ServiceNowTicketingClient()
 
-    status = client.get_ticket_status("INC7050808")
+    status = client.get_inc_ticket_status("INC7050808")
 
     assert status == TicketStatus.IN_PROGRESS
     assert captured["url"] == "https://ihguat.service-now.com/api/now/table/incident"
@@ -44,7 +44,7 @@ def test_get_ticket_status_uses_incident_table_query(monkeypatch) -> None:
     assert captured["timeout"] == 5
 
 
-def test_get_ticket_status_prefers_explicit_headers(monkeypatch) -> None:
+def test_get_inc_ticket_status_prefers_explicit_headers(monkeypatch) -> None:
     captured: dict = {}
 
     def fake_get(url, headers, auth, params, timeout):
@@ -64,7 +64,7 @@ def test_get_ticket_status_prefers_explicit_headers(monkeypatch) -> None:
 
     client = ServiceNowTicketingClient()
 
-    status = client.get_ticket_status("INC7050808")
+    status = client.get_inc_ticket_status("INC7050808")
 
     assert status == TicketStatus.RESOLVED
     assert captured["auth"] is None

@@ -239,15 +239,24 @@ class MicrosoftGraphMailboxClient(MailboxClient):
             # ),
         ]
 
-    def fetch_unread(self, limit: int = 25) -> list[EmailMessage]:
+    def fetch_unread(self, limit: int = 25, is_unread_mail: bool = None) -> list[EmailMessage]:
         if not self._graph_enabled:
             return self._emails[:limit]
 
         mailbox = quote(self._mailbox_user or "", safe="@.-_")
-        endpoint = (
+        endpoint = ""
+        if is_unread_mail is True:
+            endpoint = (
+                f"/users/{mailbox}/mailFolders/inbox/messages"
+                f"?$filter=isRead%20eq%20false"
+                "&$select=id,subject,bodyPreview,from,receivedDateTime,toRecipients,ccRecipients"
+                "&$orderby=receivedDateTime%20desc"
+            )
+        else:
+            endpoint = (
             f"/users/{mailbox}/mailFolders/inbox/messages"
-            f"?$filter=isRead%20eq%20false"
-            "&$select=id,subject,bodyPreview,from,receivedDateTime,toRecipients,ccRecipients"
+            f"?$top={limit}"
+            "&$select=id,subject,bodyPreview,from,receivedDateTime,toRecipients,ccRecipients,isRead"
             "&$orderby=receivedDateTime%20desc"
         )
         try:

@@ -37,12 +37,6 @@ def _load_rules(path: Path) -> list[Rule]:
     ]
 
 
-def _load_mapping(path: Path) -> dict[str, str]:
-    with path.open("r", encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
-    return data.get("mapping", {})
-
-
 def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
@@ -79,7 +73,8 @@ def build_pipeline() -> EmailSegregationPipeline:
     )
 
     rules = _load_rules(cfg.rules_path)
-    folder_mapper = FolderMapper(_load_mapping(cfg.mapping_path), default_folder="General")
+    mapping = cfg.category_folder_map
+    folder_mapper = FolderMapper(mapping, default_folder=mapping.get("general", ""))
 
     system_prompt = _read_text(cfg.prompts_dir / "classifier_system.txt")
     fewshot_prompt = _read_text(cfg.prompts_dir / "classifier_fewshot.txt")

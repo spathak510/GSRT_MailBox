@@ -81,7 +81,7 @@ class StubTicketingClient:
         self.ticket_numbers: list[str] = []
         self.comment_updates: list[tuple[str, str]] = []
 
-    def get_ticket_status(self, ticket_number: str) -> TicketStatus:
+    def get_inc_ticket_status(self, ticket_number: str) -> TicketStatus:
         self.ticket_numbers.append(ticket_number)
         return self.status_by_ticket.get(ticket_number, self.status)
 

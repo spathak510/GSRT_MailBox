@@ -2,7 +2,7 @@ from __future__ import annotations
 
 
 class FolderMapper:
-    def __init__(self, mapping: dict[str, str], default_folder: str = "General") -> None:
+    def __init__(self, mapping: dict[str, str], default_folder: str) -> None:
         self._mapping = {k.strip().lower(): v.strip() for k, v in mapping.items()}
         self._default_folder = default_folder
 

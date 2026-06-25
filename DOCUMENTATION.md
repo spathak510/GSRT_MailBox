@@ -155,8 +155,6 @@ mailbox_auto_assistant/
 │
 ├── data/
 │   ├── audit_log.jsonl           # Append-only audit log (auto-created)
-│   ├── mappings/
-│   │   └── category_folder_map.yaml   # category → mailbox folder name
 │   ├── prompts/
 │   │   ├── classifier_system.txt      # OpenAI system prompt
 │   │   └── classifier_fewshot.txt     # OpenAI few-shot examples
@@ -544,7 +542,7 @@ class AppConfig:
     audit_log_path: Path
     prompts_dir: Path
     rules_path: Path
-    mapping_path: Path
+    category_folder_map: dict[str, str]
     openai_api_key: str | None
     servicenow_base_url: str | None
     servicenow_url: str | None
@@ -644,18 +642,15 @@ rules:
 
 ---
 
-### `data/mappings/category_folder_map.yaml`
+### `CATEGORY_FOLDER_MAP`
 
-```yaml
-mapping:
-  finance: Finance
-  internal: Internal
-  marketing: Promotions
-  bot: Alerts
-  general: General
+Define the category to mailbox-folder mapping directly in `.env` as comma-separated `category:folder` pairs.
+
+```env
+CATEGORY_FOLDER_MAP=finance:Finance,internal:Internal,marketing:Promotions,bot:Alerts,support:Support,general:General
 ```
 
-Categories not listed here fall back to the `default_folder` (hardcoded as `"General"` in `main.py`).
+Categories not listed here fall back to the folder configured for `general`.
 
 ---
 
@@ -756,7 +751,7 @@ DATABASE_URL=sqlite:///data/email_segregation.db
 # Paths
 PROMPTS_DIR=data/prompts
 RULES_PATH=data/rules/classification_rules.yaml
-MAPPING_PATH=data/mappings/category_folder_map.yaml
+CATEGORY_FOLDER_MAP=finance:Finance,internal:Internal,marketing:Promotions,bot:Alerts,support:Support,general:General
 
 # Microsoft Graph
 MAILBOX_PROVIDER=graph
@@ -819,7 +814,7 @@ python scripts/run_api.py
 | `AUDIT_LOG_PATH` | `data/audit_log.jsonl` | Path to audit log file |
 | `PROMPTS_DIR` | `data/prompts` | Directory containing prompt text files |
 | `RULES_PATH` | `data/rules/classification_rules.yaml` | Classification rules file |
-| `MAPPING_PATH` | `data/mappings/category_folder_map.yaml` | Category → folder map |
+| `CATEGORY_FOLDER_MAP` | — | Category → folder map as comma-separated `category:folder` pairs |
 | `OPENAI_API_KEY` | — | OpenAI API key |
 | `GRAPH_TENANT_ID` | — | Azure AD tenant ID |
 | `GRAPH_CLIENT_ID` | — | Azure app registration client ID |
@@ -874,10 +869,10 @@ Edit `data/rules/classification_rules.yaml`:
     - performance review
 ```
 
-Add the folder mapping in `data/mappings/category_folder_map.yaml`:
+Add the folder mapping in `.env`:
 
-```yaml
-hr: HR
+```env
+CATEGORY_FOLDER_MAP=finance:Finance,internal:Internal,marketing:Promotions,bot:Alerts,support:Support,general:General,hr:HR
 ```
 
 ---

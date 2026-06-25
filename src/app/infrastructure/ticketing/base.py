@@ -147,7 +147,7 @@ class ServiceNowTicketingClient:
 
         return text.strip()
 
-    def get_ticket_status(self, ticket_number: str) -> "TicketStatus":
+    def get_inc_ticket_status(self, ticket_number: str) -> "TicketStatus":
         base_url = self._incident_table_base_url()
         if not base_url:
             logger.error("ServiceNow incident table URL is not configured.")
