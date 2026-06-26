@@ -5,8 +5,9 @@ from typing import Iterable
 
 from app.domain.models import EmailMessage, Rule
 
-_INCIDENT_RE = re.compile(r"\bINC\d{5,15}\b", re.IGNORECASE)
-_ADHOC_RE = re.compile(r"\bADH\d{5,15}\b", re.IGNORECASE)
+_INCIDENT_RE = re.compile(r"\bINC(?:[\s-]*)\d{5,15}\b", re.IGNORECASE)
+_ADHOC_RE = re.compile(r"\bADH(?:[\s-]*OC)?(?:[\s-]*)\d{5,15}\b", re.IGNORECASE)
+_TICKET_RE = re.compile(r"\b(?P<prefix>INC|ADH(?:[\s-]*OC)?)(?:[\s-]*)(?P<number>\d{5,15})\b", re.IGNORECASE)
 _REF_MESSAGE_RE = re.compile(
     r"\b(?:ref(?:erence)?\s*(?:msg|message)?\s*(?:id|number|no\.?)*\s*[:#-]?\s*)([A-Z0-9-]{3,})\b",
     re.IGNORECASE,
@@ -59,10 +60,34 @@ def _extract_all_by_pattern(pattern: re.Pattern[str], email: EmailMessage) -> li
     ordered_matches: list[str] = []
 
     for match in matches:
-        normalized = match.upper()
+        normalized = re.sub(r"[\s-]+", "", match.upper())
         if normalized not in seen:
             seen.add(normalized)
             ordered_matches.append(normalized)
+
+    return ordered_matches
+
+
+def extract_ticket_numbers(email: EmailMessage) -> list[dict[str, str]]:
+    matches = _TICKET_RE.finditer(_normalized_message_text(email))
+    seen: set[str] = set()
+    ordered_matches: list[dict[str, str]] = []
+
+    for match in matches:
+        raw_prefix = re.sub(r"[\s-]+", "", match.group("prefix").upper())
+        digits = match.group("number")
+        ticket_number = f"{raw_prefix}{digits}"
+        if ticket_number in seen:
+            continue
+
+        seen.add(ticket_number)
+        ticket_type = "incident" if raw_prefix == "INC" else "adhoc"
+        ordered_matches.append(
+            {
+                "ticket_number": ticket_number,
+                "ticket_type": ticket_type,
+            }
+        )
 
     return ordered_matches
 

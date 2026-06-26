@@ -11,7 +11,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-_API_STATUS_MAP = {
+_INCIDENT_API_STATUS_MAP = {
     1: TicketStatus.NEW,
     2: TicketStatus.IN_PROGRESS,
     3: TicketStatus.ON_HOLD,
@@ -19,6 +19,16 @@ _API_STATUS_MAP = {
     7: TicketStatus.CLOSED,
     8: TicketStatus.CANCELLED,
 }
+
+_ADHOC_API_STATUS_MAP = {
+    1: TicketStatus.OPEN,
+    2: TicketStatus.IN_PROGRESS,
+    4: TicketStatus.CANCELLED,
+    5: TicketStatus.PENDING,
+    6: TicketStatus.RESOLVED,
+}
+
+_DEFAULT_ADHOC_TABLE_URL = "https://ihg.service-now.com/api/now/table/u_ad_hoc_request"
 
 STOP_WORDS = {
     "from", "reply", "sent", "to", "cc",
@@ -30,12 +40,14 @@ class ServiceNowTicketingClient:
         self,
         base_url: str | None = None,
         incident_table_url: str | None = None,
+        adhoc_table_url: str | None = None,
         portal_url: str | None = None,
         username: str | None = None,
         password: str | None = None,
     ) -> None:
         self._base_url = (base_url or "").strip()
         self._incident_table_url = (incident_table_url or "").strip()
+        self._adhoc_table_url = (adhoc_table_url or "").strip()
         self._portal_url = (portal_url or "").strip()
         self._username = (username or os.getenv("IHG_SERVICENOW_USERNAME") or "").strip()
         self._password = (password or os.getenv("IHG_SERVICENOW_PASSWORD") or "").strip()
@@ -77,6 +89,32 @@ class ServiceNowTicketingClient:
         if "/api/now/table/incident" in configured_url:
             return configured_url.split("/api/now/table/incident", 1)[0] + "/api/now/table/incident"
         return configured_url.rstrip("/")
+
+    def _adhoc_table_base_url(self) -> str:
+        configured_url = (
+            self._adhoc_table_url
+            or os.getenv("IHG_SERVICENOW_ADHOC_TABLE_URL")
+            or _DEFAULT_ADHOC_TABLE_URL
+        ).strip()
+        if not configured_url:
+            return ""
+
+        parsed_url = urlsplit(configured_url)
+        if parsed_url.scheme and parsed_url.netloc and "/api/now/table/u_ad_hoc_request" not in parsed_url.path:
+            return f"{parsed_url.scheme}://{parsed_url.netloc}/api/now/table/u_ad_hoc_request"
+        if "/api/now/table/u_ad_hoc_request" in configured_url:
+            return configured_url.split("/api/now/table/u_ad_hoc_request", 1)[0] + "/api/now/table/u_ad_hoc_request"
+        return configured_url.rstrip("/")
+
+    def _table_base_url(self, ticket_type: str) -> str:
+        if ticket_type == "adhoc":
+            return self._adhoc_table_base_url()
+        return self._incident_table_base_url()
+
+    def _status_map(self, ticket_type: str) -> dict[int, TicketStatus]:
+        if ticket_type == "adhoc":
+            return _ADHOC_API_STATUS_MAP
+        return _INCIDENT_API_STATUS_MAP
 
     # def clean_recipients_from_text(self, all_addresses: list[str], result: str) -> str:
     #     for email_address in all_addresses:
@@ -190,18 +228,65 @@ class ServiceNowTicketingClient:
         raw_state = results[0].get("state")
 
         try:
-            state_value = int(raw_state)
+            state_value = abs(int(raw_state))
         except (TypeError, ValueError):
             logger.error("Invalid state value in response: %s", raw_state)
             return TicketStatus.NOT_FOUND
 
-        # ✅ Map to enum
-        return _API_STATUS_MAP.get(state_value, TicketStatus.NOT_FOUND)
-    
-    def get_sys_id_from_servicenow(self, incident_number: str):
-        base_url = self._incident_table_base_url()
+        return self._status_map("incident").get(state_value, TicketStatus.NOT_FOUND)
+
+    def get_adhoc_ticket_status(self, ticket_number: str) -> "TicketStatus":
+        base_url = self._adhoc_table_base_url()
         if not base_url:
-            logger.error("ServiceNow incident table URL is not configured.")
+            logger.error("ServiceNow adhoc table URL is not configured.")
+            return TicketStatus.NOT_FOUND
+
+        try:
+            response = requests.get(
+                base_url,
+                headers=self._headers(),
+                auth=self._auth(),
+                params={
+                    "sysparm_query": f"number={ticket_number}",
+                    "sysparm_limit": "1",
+                },
+                timeout=5,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        except requests.RequestException as exc:
+            logger.error(
+                "ServiceNow API error for %s: %s",
+                ticket_number,
+                exc
+            )
+            return TicketStatus.NOT_FOUND
+
+        except ValueError:
+            logger.error("Invalid JSON response")
+            return TicketStatus.NOT_FOUND
+
+        results = data.get("result", [])
+
+        if not results:
+            logger.warning("No ticket found: %s", ticket_number)
+            return TicketStatus.NOT_FOUND
+
+        raw_state = results[0].get("state")
+
+        try:
+            state_value = abs(int(raw_state))
+        except (TypeError, ValueError):
+            logger.error("Invalid state value in response: %s", raw_state)
+            return TicketStatus.NOT_FOUND
+
+        return self._status_map("adhoc").get(state_value, TicketStatus.NOT_FOUND)
+    
+    def get_sys_id_from_servicenow(self, ticket_number: str, ticket_type: str):
+        base_url = self._table_base_url(ticket_type)
+        if not base_url:
+            logger.error("ServiceNow %s table URL is not configured.", ticket_type)
             return False
         try:
             response = requests.get(
@@ -209,7 +294,7 @@ class ServiceNowTicketingClient:
                 headers=self._headers(),
                 auth=self._auth(),
                 params={
-                    "sysparm_query": f"number={incident_number}",
+                    "sysparm_query": f"number={ticket_number}",
                     "sysparm_limit": "1",
                 },
                 timeout=5,
@@ -219,14 +304,14 @@ class ServiceNowTicketingClient:
             sys_id = sys_response["result"][0]["sys_id"]
             return sys_id
         except (requests.RequestException, KeyError, IndexError, TypeError, ValueError) as exc:
-            logger.error("Unexpected error in add_comment for %s: %s", incident_number, exc)
+            logger.error("Unexpected error in add_comment for %s: %s", ticket_number, exc)
             return False
 
 
-    def add_comment(self, incident_number: str, mail_body: str) -> bool:
-        base_url = self._incident_table_base_url()
+    def add_comment(self, incident_number: str, mail_body: str, ticket_type: str) -> bool:
+        base_url = self._table_base_url(ticket_type)
         if not base_url:
-            logger.error("ServiceNow incident table URL is not configured.")
+            logger.error("ServiceNow %s table URL is not configured.", ticket_type)
             return False
 
         headers = {**self._headers(), "Content-Type": "application/json"}
@@ -265,16 +350,16 @@ class ServiceNowTicketingClient:
         return True
     
 
-    def get_customer_comment_from_servicenow(self, incident_number: str):
-        base_url = self._incident_table_base_url()
+    def get_customer_comment_from_servicenow(self, ticket_number: str, ticket_type: str):
+        base_url = self._table_base_url(ticket_type)
         if not base_url:
-            logger.error("ServiceNow incident table URL is not configured.")
+            logger.error("ServiceNow %s table URL is not configured.", ticket_type)
             return False
 
         headers = {**self._headers(), "Content-Type": "application/json"}
         comments = {}
         try:
-            sys_id = self.get_sys_id_from_servicenow(incident_number)
+            sys_id = self.get_sys_id_from_servicenow(ticket_number, ticket_type)
             url = f"{base_url}/{sys_id}"
 
             response = requests.get(url, headers=headers, auth=self._auth(), timeout=5)
@@ -284,7 +369,7 @@ class ServiceNowTicketingClient:
             comments["u_comments_fulfiller"] = result.get("u_comments_fulfiller", "")
             return comments
         except requests.RequestException as exc:
-            logger.error("ServiceNow add comment error for %s: %s", incident_number, exc)
+            logger.error("ServiceNow add comment error for %s: %s", ticket_number, exc)
             return False
         
     def extract_email_body(self, body: str) -> str:
@@ -349,8 +434,8 @@ class ServiceNowTicketingClient:
         }
         return response
 
-    def comment_accuracy_validation(self, incident_number: str, email: str) -> bool:
-        comments =  self.get_customer_comment_from_servicenow(incident_number)
+    def comment_accuracy_validation(self, ticket_number: str, email: str, ticket_type: str) -> bool:
+        comments =  self.get_customer_comment_from_servicenow(ticket_number, ticket_type)
         if comments["u_comment_customer"]:
             match_response = self.match_accuracy_text(comments["u_comment_customer"], email)
             if match_response["match_percent"] < 70:
@@ -360,7 +445,7 @@ class ServiceNowTicketingClient:
         print("Match response----------------------------------------:", match_response)
         match_response["match"] = False
         if match_response["match_percent"] >= 70:
-            logger.warning("Comment accuracy validation failed for %s: %s", incident_number, match_response)
+            logger.warning("Comment accuracy validation failed for %s: %s", ticket_number, match_response)
             match_response["match"] = True
     
         return match_response

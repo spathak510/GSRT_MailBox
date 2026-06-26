@@ -20,7 +20,7 @@ class StubTicketingClient(TicketingClient):
         elif ticket_number.endswith("2"):
             return TicketStatus.IN_PROGRESS
         elif ticket_number.endswith("4"):
-            return TicketStatus.CANCELED
+            return TicketStatus.CANCELLED
         elif ticket_number.endswith("6"):
             return TicketStatus.RESOLVED
         return TicketStatus.OPEN

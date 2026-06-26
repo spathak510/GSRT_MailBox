@@ -67,6 +67,7 @@ def build_pipeline() -> EmailSegregationPipeline:
     ticketing_client = ServiceNowTicketingClient(
         base_url=cfg.servicenow_base_url,
         incident_table_url=cfg.servicenow_url,
+        adhoc_table_url=cfg.servicenow_adhoc_url,
         portal_url=cfg.servicenow_portal_url,
         username=cfg.servicenow_username,
         password=cfg.servicenow_password,

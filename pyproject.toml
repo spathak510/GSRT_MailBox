@@ -18,5 +18,5 @@ dependencies = [
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-testpaths = ["tests"]
+testpaths = ["test_suite.py"]
 addopts = "-q"

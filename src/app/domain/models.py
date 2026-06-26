@@ -7,8 +7,10 @@ from enum import Enum
 
 class TicketStatus(str, Enum):
     NEW = "new"
+    OPEN = "open"
     IN_PROGRESS = "in_progress"
     ON_HOLD = "on_hold"
+    PENDING = "pending"
     RESOLVED = "resolved"
     CLOSED = "closed"
     CANCELLED = "cancelled"

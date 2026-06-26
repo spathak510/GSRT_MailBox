@@ -36,6 +36,7 @@ class AppConfig:
     openai_api_key: str | None
     servicenow_base_url: str | None
     servicenow_url: str | None
+    servicenow_adhoc_url: str | None
     servicenow_portal_url: str | None
     servicenow_username: str | None
     servicenow_password: str | None
@@ -72,6 +73,7 @@ def load_config() -> AppConfig:
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
         servicenow_base_url=os.getenv("IHG_SERVICENOW_BASE_URL") or None,
         servicenow_url=os.getenv("IHG_SERVICENOW_URL") or None,
+        servicenow_adhoc_url=os.getenv("IHG_SERVICENOW_ADHOC_TABLE_URL") or None,
         servicenow_portal_url=os.getenv("IHG_SERVICENOW_PORTAL_URL") or None,
         servicenow_username=os.getenv("IHG_SERVICENOW_USERNAME") or None,
         servicenow_password=os.getenv("IHG_SERVICENOW_PASSWORD") or None,
